@@ -1,42 +1,41 @@
+// Debug
 #ifdef _DEBUG
-//#define _CRTDBG_MAP_ALLOC
-#ifdef _CRTDBG_MAP_ALLOC
-#include <stdlib.h>
-#include <crtdbg.h>
-#else
-//#include <vld.h>
+	//#define _CRTDBG_MAP_ALLOC
+	#ifdef _CRTDBG_MAP_ALLOC
+	#include <stdlib.h>
+	#include <crtdbg.h>
+	#else
+	//#include <vld.h>
+	#endif
 #endif
-#endif
-
+// Messaging
 #ifdef USE_MESSAGING
 #include <VCELL/SimulationMessaging.h>
 #endif
+// Standard Includes
+#include <iomanip>
+#include <fstream>
+#include <sstream>
+#include <memory.h>
+#include <cstdlib>
+// Local Includes
 #include "VCellCVodeSolver.h"
 #include "VCellIDASolver.h"
 #include "OdeResultSet.h"
 #include "StoppedByUserException.h"
 #include <VCELL/GitDescribe.h>
 
-#include <stdio.h>
-#include <iomanip>
-#include <fstream>
-#include <sstream>
-#include <string.h>
-using std::ifstream;
-using std::stringstream;
 
-#include <memory.h>
-#include <stdlib.h>
 
 #define CVODE_SOLVER "CVODE"
 #define IDA_SOLVER "IDA"
 
 void printUsage() {
-	cout << "Usage: SundialsSolverStandalone input output";
-#ifdef USE_MESSAGING
-	cout << " [-tid 0]" << endl;
-#endif
-	cout << endl;
+	std::string usageMessage{"Usage: SundialsSolverStandalone input output"};
+	#ifdef USE_MESSAGING
+	usageMessage += " [-tid 0]";
+	#endif
+	std::cout << usageMessage << std::endl;
 }
 
 void loadJMSInfo(istream& ifsInput, int taskID) {
@@ -93,7 +92,7 @@ void loadJMSInfo(istream& ifsInput, int taskID) {
 #endif
 }
 
-void errExit(int returnCode, string& errorMsg) {	
+void errExit(int returnCode, std::string& errorMsg) {
 #ifdef USE_MESSAGING
 	if (returnCode != 0) {
 		if (SimulationMessaging::getInstVar() != 0 && !SimulationMessaging::getInstVar()->isStopRequested()) {
@@ -110,7 +109,7 @@ void errExit(int returnCode, string& errorMsg) {
 	}
 #else
 	if (returnCode != 0) {	
-		cerr << errorMsg << endl;
+		std::cerr << errorMsg << std::endl;
 	}
 #endif
 }
@@ -119,7 +118,7 @@ int main(int argc, char *argv[]) {
     	std::cout 
 	    << "Sundials Standalone version " << g_GIT_DESCRIBE
 	    << std::endl; 
-	cout << setprecision(20);
+	std::cout << std::setprecision(20);
 
 	int taskID = -1;
 	string inputfname;
@@ -129,7 +128,7 @@ int main(int argc, char *argv[]) {
 	int returnCode = 0;
 
 	if (argc < 3) {
-		cout << "Missing arguments!" << endl;
+		std::cout << "Missing arguments!" << std::endl;
 		printUsage();
 		exit(1);
 	}
@@ -151,7 +150,7 @@ int main(int argc, char *argv[]) {
 			}
 			taskID = atoi(argv[i]);
 #else
-			cout << "Wrong argument : " << argv[i] << endl;
+			std::cout << "Wrong argument : " << argv[i] << std::endl;
 			printUsage();
 			exit(1);
 #endif
@@ -163,15 +162,15 @@ int main(int argc, char *argv[]) {
 	}
 
 	FILE* outputFile = NULL;
-	ifstream inputstream(inputfname.c_str());
+	std::ifstream inputstream(inputfname.c_str());
 	try {		
 		if (!inputstream.is_open()) {
-			throw string("input file [") + inputfname + "] doesn't exit!";
+			throw std::string("input file [") + inputfname + "] doesn't exit!";
 		}
 
 		// Open the output file...		
 		if ((outputFile = fopen(argv[2], "w")) == NULL) {
-			throw string("Could not open output file[") +  outputfname + "] for writing.";
+			throw std::string("Could not open output file[") +  outputfname + "] for writing.";
 		}
 
 		string nextToken;		

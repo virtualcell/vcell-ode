@@ -231,15 +231,15 @@ int VCellCVodeSolver::RHS (realtype t, N_Vector y, N_Vector r) {
 		recoverableErrMsg = "";
 		return 0;
 	}catch (DivideByZeroException e){
-		cout << "failed to evaluate residual: " << e.getMessage() << endl;
+		std::cout << "failed to evaluate residual: " << e.getMessage() << std::endl;
 		recoverableErrMsg = e.getMessage();
 		return 1;
 	}catch (FunctionDomainException e){
-		cout << "failed to evaluate residual: " << e.getMessage() << endl;
+		std::cout << "failed to evaluate residual: " << e.getMessage() << std::endl;
 		recoverableErrMsg = e.getMessage();
 		return 1;
 	}catch (FunctionRangeException e){
-		cout << "failed to evaluate residual: " << e.getMessage() << endl;
+		std::cout << "failed to evaluate residual: " << e.getMessage() << std::endl;
 		recoverableErrMsg = e.getMessage();
 		return 1;
 	}
@@ -326,7 +326,7 @@ bool VCellCVodeSolver::fixInitialDiscontinuities(double t) {
 	double* oldy = new double[NEQ];
 	memcpy(oldy, NV_DATA_S(y), NEQ * sizeof(realtype));
 
-	double epsilon = max(1e-15, ENDING_TIME * 1e-10);
+	double epsilon = std::max(1e-15, ENDING_TIME * 1e-10);
 	double currentTime = t;	
 	double tout = currentTime + epsilon;
 	CVodeSetStopTime(solver, tout);
@@ -341,7 +341,7 @@ bool VCellCVodeSolver::fixInitialDiscontinuities(double t) {
 		// evaluate discontinuities at t+epsilon
 		double v = odeDiscontinuities[i]->discontinuityExpression->evaluateVector(values);
 		if (v != discontinuityValues[i]) {
-			cout << "fixInitialDiscontinuities() : update discontinuities at time " << t << " : " << odeDiscontinuities[i]->discontinuityExpression->infix() << " " << discontinuityValues[i] << " " << v << endl;
+			std::cout << "fixInitialDiscontinuities() : update discontinuities at time " << t << " : " << odeDiscontinuities[i]->discontinuityExpression->infix() << " " << discontinuityValues[i] << " " << v << std::endl;
 			discontinuityValues[i] = v;			
 			bInitChanged = true;
 		}
@@ -364,7 +364,7 @@ void VCellCVodeSolver::onCVodeReturn(realtype Time, int returnCode) {
 		// flip discontinuities
 		int flag = CVodeGetRootInfo(solver, rootsFound);
 		checkCVodeFlag(flag);
-		cout << endl << "cvodeSolve() : roots found at time " << Time << endl;
+		std::cout << std::endl << "cvodeSolve() : roots found at time " << Time << std::endl;
 #ifdef SUNDIALS_DEBUG
 		printVariableValues(Time);
 #endif
@@ -419,8 +419,8 @@ void VCellCVodeSolver::cvodeSolve(bool bPrintProgress, FILE* outputFile, void (*
 				checkStopRequested(Time, iterationCount);
 			}								
 			
-			double tstop = min(ENDING_TIME, Time + 2 * maxTimeStep + (1e-15));
-			tstop = min(tstop, getNextEventTime());
+			double tstop = std::min(ENDING_TIME, Time + 2 * maxTimeStep + (1e-15));
+			tstop = std::min(tstop, getNextEventTime());
 			
 			CVodeSetStopTime(solver, tstop);
 			int returnCode = CVode(solver, ENDING_TIME, y, &Time, CV_ONE_STEP_TSTOP);
@@ -462,8 +462,8 @@ void VCellCVodeSolver::cvodeSolve(bool bPrintProgress, FILE* outputFile, void (*
 					checkStopRequested(Time, iterationCount);
 				}
 
-				double tstop = min(sampleTime, Time + 2 * maxTimeStep + (1e-15));
-				tstop = min(tstop, getNextEventTime());
+				double tstop = std::min(sampleTime, Time + 2 * maxTimeStep + (1e-15));
+				tstop = std::min(tstop, getNextEventTime());
 
 				CVodeSetStopTime(solver, tstop);
 				int returnCode = CVode(solver, sampleTime, y, &Time, CV_NORMAL_TSTOP);

@@ -2,7 +2,6 @@
 #include "Expression.h"
 #include "SymbolTable.h"
 #include "Exception.h"
-using namespace VCell;
 
 #include <memory.h>
 
@@ -28,7 +27,7 @@ OdeResultSet::~OdeResultSet()
 
 void OdeResultSet::addColumn(const string& aColumn) {
 	if (numRowsAllocated != 0) {
-		throw Exception("Can't add column when rowData is not empty");
+		throw VCell::Exception("Can't add column when rowData is not empty");
 	}
 	columns.push_back(Column(aColumn, 0));
 	numDataColumns ++;
@@ -43,7 +42,7 @@ void OdeResultSet::bindFunctionExpression(SymbolTable* symbolTable) {
 }
 
 void OdeResultSet::addFunctionColumn(const string& aColumn, const string& exp) {
-	columns.push_back(Column(aColumn, new Expression(exp)));
+	columns.push_back(Column(aColumn, new VCell::Expression(exp)));
 	numFunctionColumns ++;
 }
 
@@ -76,7 +75,7 @@ void OdeResultSet::setColumnWeights(double* weights){
 
 double* OdeResultSet::getRowData(int index) {
 	if (index >= numRowsUsed) {
-		throw Exception("OdeResultSet::getRowData(int index), row index is out of bounds");
+		throw VCell::Exception("OdeResultSet::getRowData(int index), row index is out of bounds");
 	}
 	return rowData + index * numDataColumns;
 }
@@ -122,7 +121,7 @@ int OdeResultSet::getNumRows() {
 	return numRowsUsed;
 }
 
-Expression* OdeResultSet::getColumnFunctionExpression(int columnIndex) {
+VCell::Expression* OdeResultSet::getColumnFunctionExpression(int columnIndex) {
 	if (columnIndex >= (int)columns.size()) {
 		throw "OdeResultSet::getColumnFunctionExpression(), column index is out of bounds";
 	}
