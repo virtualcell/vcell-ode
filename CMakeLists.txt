@@ -1,28 +1,38 @@
 #############################################
 #
-#  Build 64bit binaries on Mac and target Macos 10.7 or later
+#  Top Level CMake File
 #
 ##############################################
-if (APPLE)
-	execute_process(COMMAND uname -m OUTPUT_VARIABLE PROCESSOR_ARCHITECTURE OUTPUT_STRIP_TRAILING_WHITESPACE)
-	message("Processor Architecture: ${PROCESSOR_ARCHITECTURE}")
-	if (PROCESSOR_ARCHITECTURE STREQUAL "arm64")
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__arm64__")
-		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D__arm64__")
-		set(CMAKE_OSX_ARCHITECTURES "arm64")
-	else()
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D__x86_64__")
-		set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D__x86_64__")
-		set(CMAKE_OSX_ARCHITECTURES "x86_64")
-	endif()
+cmake_minimum_required(VERSION 3.13)
+project(vcell-ode-numerics)
+set(CMAKE_CXX_STANDARD 17)
+enable_language(CXX)
+enable_language(C)
+enable_language(Fortran)
+
+#############################################
+#  If this isn't explicitly set in cmake 3.x.x, we get warnings
+##############################################
+if(POLICY CMP0057)
+	cmake_policy(SET CMP0057 NEW)
+endif()
+
+#############################################
+#  Display extra CMAKE info while configuring
+##############################################
+option(OPTION_EXTRA_CONFIG_INFO "Print useful cmake debug info while configuring" off)
+
+#############################################
+#
+#  Build 64bit binaries on Mac and target Macos 10.7 or later
+#
 #	set(CMAKE_Fortran_OSX_DEPLOYMENT_TARGET_FLAG "-mmacosx-version-min=10.7" CACHE PATH "")
 #	set(CMAKE_OSX_DEPLOYMENT_TARGET "10.7" CACHE PATH "")
-#############################################
 #
 #  Choose 32bit or 64bit target arch on Linux
 #
 ##############################################
-elseif (LINUX)
+if (LINUX)
 	option(LINUX_32bit_BINARIES "Build 32bit Linux BINARIES" OFF)
 	option(LINUX_64bit_BINARIES "Build 64bit Linux BINARIES" ON)
 
@@ -44,22 +54,9 @@ elseif (LINUX)
 	endif()
 endif()
 
-cmake_minimum_required(VERSION 3.13)
-project(numerics)
-set(CMAKE_CXX_STANDARD 14)
-enable_language(CXX)
-enable_language(C)
-enable_language(Fortran)
-
-if(POLICY CMP0057)
-  cmake_policy(SET CMP0057 NEW)
-endif()
-
 #include (LocalJNI.cmake)
-
 set(RULE_MESSAGES OFF)
 set(CMAKE_COLOR_MAKEFILE OFF)
-set(_ECLIPSE_VERSION "4.4")
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules/")
 
 include(GetGitRevisionDescription)
@@ -87,24 +84,9 @@ endif()
 #include (CheckSymbolExists)
 #include (CheckTypeSize)
 include (FindZLIB)
-#message("gen "${CMAKE_GENERATOR})
-#message("extra "${CMAKE_EXTRA_GENERATOR})
-#message("system "${CMAKE_SYSTEM_NAME})
-#message("windows "${WINDOWS})
 
 option(OPTION_TARGET_MESSAGING "Messaging (requires libcurl)" off)
-option(OPTION_TARGET_PARALLEL "Parallel Solver (only chombo for now)" off)
-option(OPTION_TARGET_PETSC "PETSc Solver (only FV for now)" off)
 option(OPTION_TARGET_DOCS "Generate Doxygen documentation" on)
-option(OPTION_TARGET_CHOMBO2D_SOLVER "Chombo2D Solver" off)
-option(OPTION_TARGET_CHOMBO3D_SOLVER "Chombo3D Solver" off)
-option(OPTION_TARGET_SMOLDYN_SOLVER "only smoldyn" on)
-option(OPTION_TARGET_FV_SOLVER on)
-option(OPTION_TARGET_STOCHASTIC_SOLVER on)
-option(OPTION_TARGET_NFSIM_SOLVER on)
-option(OPTION_TARGET_MOVINGBOUNDARY_SOLVER on)
-option(OPTION_TARGET_SUNDIALS_SOLVER on) #idawin
-option(OPTION_TARGET_HY3S_SOLVERS on)
  
                   
 if (${OPTION_TARGET_DOCS})
@@ -127,34 +109,11 @@ if (${OPTION_TARGET_DOCS})
 endif()
 
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
-	if (APPLE)
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
-	elseif (MINGW)
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
-	else ()
-		set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libstdc++")
-	endif()
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
     set(CMAKE_OSX_DEPLOYMENT_TARGET "10.7" CACHE STRING "Choose minimum deploy target for Macos machines")
 endif()
- 
-if (${OPTION_TARGET_CHOMBO2D_SOLVER} OR ${OPTION_TARGET_CHOMBO3D_SOLVER})     
-	if (${OPTION_TARGET_PARALLEL})
-		find_package(MPI)
-		set(HDF5_ENABLE_PARALLEL ON CACHE BOOL "parallel hdf5 library")
-		set(HDF5_BUILD_CPP_LIB OFF CACHE BOOL "" )
-	else (${OPTION_TARGET_PARALLEL})
-		message("serials solvers")
-		set(HDF5_BUILD_CPP_LIB ON CACHE BOOL "" )
-	endif (${OPTION_TARGET_PARALLEL})
-else()
-	set(HDF5_BUILD_CPP_LIB OFF CACHE BOOL "" )
-endif()
-
-#if (APPLE)
-#endif()
 
 set(HDF5_BUILD_CPP_LIB OFF CACHE BOOL "" )
-message("hdf5 cpp ${HDF5_BUILD_CPP_LIB}")
 
 set(LINUX FALSE)
 if (${CMAKE_SYSTEM_NAME} MATCHES Linux)
@@ -173,22 +132,17 @@ if (CMAKE_SIZEOF_VOID_P EQUAL 8)
 	set (ARCH_64bit TRUE)
 endif()
 
-if (NOT APPLE AND NOT LINUX AND NOT MINGW)
-	message(FATAL_ERROR "Unsupported Operating System or C/C++ Compiler.")
+if (NOT APPLE AND NOT LINUX AND NOT WINDOWS)
+	message(FATAL_ERROR "Unsupported Operating System")
 endif()
-
-#f (LINUX)
-#set(BUILD_SHARED_LIBRARIES OFF)
-#set(CMAKE_FIND_LIBRARY_SUFFIXES ".a")
-#endif()
 
 #---------------------------
 #  IDE SUPPORT
 #---------------------------
-if (MINGW) 
+if (WINDOWS)
 	set(NETBEANS_WINDOWS TRUE)
 	set(CMAKE_RC_FLAGS "-DGCC_WINDRES")
-endif(MINGW)
+endif(WINDOWS)
 
 add_definitions(-DFORTRAN_UNDERSCORE)
 
@@ -207,19 +161,8 @@ set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}")
 
 add_definitions(-DUNIX)
 
-#if (MINGW)
-#	add_definitions(-DWIN32)
-#endif(MINGW)
-
-#set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC")
-#set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fPIC")
-
 
 if (OPTION_TARGET_MESSAGING)
-#	if (APPLE OR MINGW)
-#		message(FATAL_ERROR "TARGET_SOLVERS_WITH_MESSAGING is not supported on MAC OS X and MINGW")
-#	endif(APPLE OR MINGW)
-	
 	#don't need graphics for server side solvers
 	set(OPTION_USE_OPENGL OFF CACHE BOOL "")
 	
@@ -229,168 +172,31 @@ if (OPTION_TARGET_MESSAGING)
 	add_definitions(-DUSE_MESSAGING)
 endif()
 
-if (OPTION_TARGET_PETSC)
-	find_package(PETSc REQUIRED)
-endif()
-
 ######################################
 #
 # Add subdirectories
 # 
 #######################################
 
-if (${OPTION_TARGET_MOVINGBOUNDARY_SOLVER} OR
-	${OPTION_TARGET_FV_SOLVER} OR
-	${OPTION_TARGET_SMOLDYN_SOLVER} OR
-	${OPTION_TARGET_CHOMBO2D_SOLVER} OR
-	${OPTION_TARGET_CHOMBO3D_SOLVER}
-	)
+add_subdirectory(VCellMessaging)
+message(STATUS "adding ExpressionParser")
+add_subdirectory(ExpressionParser)
+message(STATUS "adding sundials")
+add_subdirectory(sundials)
+add_subdirectory(IDAWin)
 
-	if (${HDF5_BUILD_CPP_LIB})
-		add_subdirectory(hdf5-1.8.11)
-	else()
-		set(HDF5_USE_STATIC_LIBRARIES ON)
-		if(WINDOWS OR WIN32 OR WIN64)
-			set(HDF5_USE_STATIC_LIBRARIES OFF)
-		endif ()
-		#CMakeList.txt that comes with hdf5 switches library name if compiled with debug
-		find_package(HDF5 COMPONENTS HL CXX C)
-		set(HDF_VERSION ${HDF5_VERSION})
-		######    ${HDF5_HL_LIBRARIES} ${HDF5_CXX_LIBRARIES}
-		if (${OPTION_TARGET_CHOMBO2D_SOLVER} OR
-			${OPTION_TARGET_CHOMBO3D_SOLVER}
-			)
-				set(_hdf5_libs hdf5 hdf5_cpp)
-				set(HDF_LIB hdf5 hdf5_cpp)
-		endif()
-	endif()
-endif()
-
-#if (${OPTION_TARGET_CHOMBO2D_SOLVER})
-#	include(ExternalProject)
-#    ExternalProject_Add(chombo2d 
-#        DOWNLOAD_COMMAND "mkdir -p ${CMAKE_BUILD_RPATH} && cp VCellChombo ${CMAKE_BUILD_RPATH}/Chombo2D"
-#        PREFIX ${CMAKE_BUILD_RPATH}/Chombo2D
-#        BUILD_IN_SOURCE true)
-#endif()
-
-	add_subdirectory(VCellMessaging)
- 
-    if (${OPTION_TARGET_MOVINGBOUNDARY_SOLVER} OR 
-    	${OPTION_TARGET_NFSIM_SOLVER}
-    	)
-    	add_subdirectory(vcommons)
-    endif()
-    
- 	if (${OPTION_TARGET_FV_SOLVER} OR
-		${OPTION_TARGET_SMOLDYN_SOLVER}
-		)
-		add_subdirectory(VCellZipUtils)
-		add_subdirectory(libzip-1.2.0)
-	endif()
-	
-    if (${OPTION_TARGET_FV_SOLVER} OR 
-    	${OPTION_TARGET_SMOLDYN_SOLVER} OR
-    	${OPTION_TARGET_SUNDIALS_SOLVER} OR 
-    	${OPTION_TARGET_STOCHASTIC_SOLVER} OR 
-    	${OPTION_TARGET_MOVINGBOUNDARY_SOLVER}
-    	)
-    	message(STATUS "adding ExpressionParser")
-		add_subdirectory(ExpressionParser)
-	endif()
-	
-	if (${OPTION_TARGET_CHOMBO2D_SOLVER} OR
-		${OPTION_TARGET_CHOMBO3D_SOLVER}
-		) 
-		if (${OPTION_TARGET_CHOMBO3D_SOLVER})
-			set(CHOMBO_3D TRUE)
-		else()
-			set(CHOMBO_3D FALSE)
-		endif()
-		
-		add_subdirectory(VCellChombo)
-		if (${OPTION_TARGET_PARALLEL})
-			set(PARALLEL_CHOMBO_SOLVER TRUE)
-#			add_subdirectory(ChomboParallel)
-		else()
-			set(PARALLEL_CHOMBO_SOLVER FALSE)
-#			add_subdirectory(Chombo)
-		endif()
-	endif()
-
-	if (${OPTION_TARGET_SUNDIALS_SOLVER} OR
-		${OPTION_TARGET_SMOLDYN_SOLVER} OR
-		${OPTION_TARGET_FV_SOLVER}
-		)
-    	message(STATUS "adding sundials")
-		add_subdirectory(sundials)
-	endif ()
-	
-	if (${OPTION_TARGET_SUNDIALS_SOLVER})
-		add_subdirectory(IDAWin)
-	endif ()
-	
-	if (${OPTION_TARGET_MOVINGBOUNDARY_SOLVER})
-    	message(STATUS "adding MovingBoundarySolver")
-		add_subdirectory(MBSolver)
-    	message(STATUS "adding FronTierLib")
-		add_subdirectory(FronTierLib)
-	endif()
-	
-	if (${OPTION_TARGET_FV_SOLVER} OR ${OPTION_TARGET_SMOLDYN_SOLVER})
-		if (NOT APPLE)
-			add_subdirectory(blas)
-		endif()
-	endif()
-
-	if (${OPTION_TARGET_HY3S_SOLVERS})
-		if (MINGW)
-			add_definitions(-ffree-line-length-none)
-#			add_definitions(-std=legacy)
-		endif()
-		add_subdirectory(Hy3S)
-		# set (NETCDF_F90 "YES")
-		# find_package (NetCDF REQUIRED)
-		# add_subdirectory(netcdf-fortran-4.4.4/fortran)
-		add_subdirectory(netcdf-3.6.2)
-	endif()
-	
-	if (${OPTION_TARGET_NFSIM_SOLVER})
-		add_subdirectory(NFsim_v1.11) 
-	endif( )
-	
-	if (${OPTION_TARGET_STOCHASTIC_SOLVER})
-		add_subdirectory(Stochastic)
-	endif ()
-	
-	if (OPTION_TARGET_SMOLDYN_SOLVER OR 
-		OPTION_TARGET_FV_SOLVER
-		)
-		option(OPTION_VCELL "Compile Smoldyn for VCell" ON)
-		option(OPTION_NSV "Compile Smoldyn with NextSubvolume functionality" OFF)
-		option(OPTION_USE_OPENGL "Build with OpenGL support" OFF)
-		option(OPTION_USE_ZLIB "Build with Zlib support" ON)
-		option(OPTION_USE_LIBTIFF "Build with LibTiff support" OFF)
-		option(OPTION_USE_ICONV "Build with Libiconv support" OFF)
-		SET(HAVE_ZLIB TRUE)
-		set(OPTION_TARGET_LIBSMOLDYN ON)
-		set(OPTION_VCELL ON)
-		add_subdirectory(bridgeVCellSmoldyn)
-		add_subdirectory(smoldyn-2.38)
-	endif ()
-	
-	if (${OPTION_TARGET_FV_SOLVER} OR
-		${OPTION_TARGET_SMOLDYN_SOLVER}
-		)
-		add_subdirectory(VCell)
-		add_subdirectory(PCGPack) 
-		add_subdirectory(qhull)
-	endif ()
-
+set(DOWNLOAD_EXTRACT_TIMESTAMP true)
+cmake_policy(SET CMP0135 NEW)
+#############################################
+#
+#  Declare and install dependency: Google-test
+#
+##############################################
 include(FetchContent)
 FetchContent_Declare(
 		googletest
-		URL https://github.com/google/googletest/archive/03597a01ee50ed33e9dfd640b249b4be3799d395.zip
+		GIT_REPOSITORY https://github.com/google/googletest.git
+		GIT_TAG          v1.14.0
 )
 if (WINDOWS)
 	# For Windows: Prevent overriding the parent project's compiler/linker settings
@@ -400,20 +206,23 @@ endif()
 FetchContent_MakeAvailable(googletest)
 enable_testing()
 
-get_cmake_property(_variableNames VARIABLES)
-list (SORT _variableNames)
-foreach (_variableName ${_variableNames})
-	message(STATUS "${_variableName}=${${_variableName}}")
-endforeach()
+#############################################
+#
+#  Display all sorts of detailed debug information
+#
+##############################################
+if (OPTION_EXTRA_CONFIG_INFO)
+	get_cmake_property(_variableNames VARIABLES)
+	list (SORT _variableNames)
+	foreach (_variableName ${_variableNames})
+		message(STATUS "${_variableName}=${${_variableName}}")
+	endforeach()
 
-include(CMakePrintHelpers)
-cmake_print_variables(OPTION_TARGET_MESSAGING OPTION_TARGET_PARALLEL OPTION_TARGET_PETSC
-		OPTION_TARGET_DOCS OPTION_TARGET_CHOMBO2D_SOLVER OPTION_TARGET_CHOMBO3D_SOLVER
-		OPTION_TARGET_SMOLDYN_SOLVER OPTION_TARGET_FV_SOLVER OPTION_TARGET_STOCHASTIC_SOLVER
-		OPTION_TARGET_NFSIM_SOLVER OPTION_TARGET_MOVINGBOUNDARY_SOLVER OPTION_TARGET_SUNDIALS_SOLVER
-		OPTION_TARGET_HY3S_SOLVERS OPTION_TARGET_LIBSMOLDYN OPTION_TARGET_VCELL OPTION_TARGET_NSV )
-cmake_print_variables(CMAKE_CXX_FLAGS CMAKE_C_FLAGS CMAKE_Fortran_FLAGS)
-cmake_print_variables(CMAKE_SYSTEM_NAME WINDOWS WIN32 MINGW APPLE ARCH_64bit ARCH_32bit)
-cmake_print_variables(CMAKE_CPP_COMPILER CMAKE_C_COMPILER CMAKE_CXX_COMPILER CMAKE_Fortran_COMPILER)
-cmake_print_variables(HAVE_ZLIB)
+	include(CMakePrintHelpers)
+	cmake_print_variables(OPTION_TARGET_MESSAGING OPTION_TARGET_DOCS)
+	cmake_print_variables(CMAKE_CXX_FLAGS CMAKE_C_FLAGS CMAKE_Fortran_FLAGS)
+	cmake_print_variables(CMAKE_SYSTEM_NAME WINDOWS WIN32 MINGW APPLE ARCH_64bit ARCH_32bit)
+	cmake_print_variables(CMAKE_CPP_COMPILER CMAKE_C_COMPILER CMAKE_CXX_COMPILER CMAKE_Fortran_COMPILER)
+	cmake_print_variables(HAVE_ZLIB)
+endif ()
 
