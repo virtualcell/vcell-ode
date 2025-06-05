@@ -6,7 +6,7 @@ env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
-jobs:
+#jobs:
 #  build-and-push-image:
 #    runs-on: ubuntu-latest
 #    permissions:
@@ -38,6 +38,7 @@ jobs:
 #          tags: ${{ steps.meta.outputs.tags }}
 #          labels: ${{ steps.meta.outputs.labels }}
 
+jobs:
   native-build:
     name:
       native-build-${{ matrix.platform }}
@@ -62,7 +63,6 @@ jobs:
         shell: bash
         run: |
           brew install boost
-          brew install hdf5
           brew install ninja
 
           brew install llvm
@@ -81,19 +81,26 @@ jobs:
         if: matrix.platform == 'macos-14'
         shell: bash
         run: |
-          brew install boost
-          brew install hdf5
-          brew install ninja
-
-          brew install llvm
-          echo 'export PATH="/opt/homebrew/opt/llvm/bin:$PATH"' >> /Users/runner/.bash_profile
-          ln -s /opt/homebrew/bin/gfortran-14 /usr/local/bin/gfortran
-          
-          gcc --version
-          gfortran --version
-          cmake --version
-          brew info boost
-          brew info hdf5
+          brew install conan
+          conan --version
+          mkdir -p ~/.conan2/profiles/
+          touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
+          cp conan-profiles/CI-CD/MacOS-ARM8_profile.txt ~/.conan2/profiles/default
+          conan install . \
+               --output-folder build \
+               --build SundialsSolverStandalone_x64
+#          brew install boost
+#          brew install ninja
+#
+#          brew install llvm
+#          echo 'export PATH="/opt/homebrew/opt/llvm/bin:$PATH"' >> /Users/runner/.bash_profile
+#          ln -s /opt/homebrew/bin/gfortran-14 /usr/local/bin/gfortran
+#
+#          gcc --version
+#          gfortran --version
+#          cmake --version
+#          brew info boost
+#          brew info hdf5
 
       - name: Build on ARM Macos
         if: matrix.platform == 'macos-14'
@@ -101,19 +108,22 @@ jobs:
           platform=macos
           echo "working dir is $PWD"
 
-          mkdir build
           cd build
 
           export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
+          
+          cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Debug
+          cmake --build .
 
-          cmake \
-          -G Ninja \
-          -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm/bin/clang \
-          -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm/bin/clang++ \
-          -DOPTION_TARGET_MESSAGING=OFF \
-          -B . -S ..
-
-          ninja
+#          mkdir build
+#          cd build
+#          cmake \
+#          -G Ninja \
+#          -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm/bin/clang \
+#          -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm/bin/clang++ \
+#          -DOPTION_TARGET_MESSAGING=OFF \
+#          -B . -S ..
+#          ninja
 
       - name: Build on Intel Macos
         if: matrix.platform == 'macos-13'

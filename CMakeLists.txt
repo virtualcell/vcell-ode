@@ -8,7 +8,7 @@ project(vcell-ode-numerics)
 set(CMAKE_CXX_STANDARD 17)
 enable_language(CXX)
 enable_language(C)
-enable_language(Fortran)
+#enable_language(Fortran)
 
 #############################################
 #  If this isn't explicitly set in cmake 3.x.x, we get warnings
@@ -44,13 +44,13 @@ if (LINUX)
 		set (ARCH_64bit FALSE)
 		set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m32")
 		set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32")
-		set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -m32")
+#		set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -m32")
 	endif()
 	
 	if (LINUX_64bit_BINARIES) 
 		set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m64")
 		set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m64")
-		set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -m64")
+#		set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -m64")
 	endif()
 endif()
 
@@ -144,7 +144,7 @@ if (WINDOWS)
 	set(CMAKE_RC_FLAGS "-DGCC_WINDRES")
 endif(WINDOWS)
 
-add_definitions(-DFORTRAN_UNDERSCORE)
+#add_definitions(-DFORTRAN_UNDERSCORE)
 
 #############################################
 # installation directories
@@ -220,9 +220,11 @@ if (OPTION_EXTRA_CONFIG_INFO)
 
 	include(CMakePrintHelpers)
 	cmake_print_variables(OPTION_TARGET_MESSAGING OPTION_TARGET_DOCS)
-	cmake_print_variables(CMAKE_CXX_FLAGS CMAKE_C_FLAGS CMAKE_Fortran_FLAGS)
+#	cmake_print_variables(CMAKE_CXX_FLAGS CMAKE_C_FLAGS CMAKE_Fortran_FLAGS)
+	cmake_print_variables(CMAKE_CXX_FLAGS CMAKE_C_FLAGS)
 	cmake_print_variables(CMAKE_SYSTEM_NAME WINDOWS WIN32 MINGW APPLE ARCH_64bit ARCH_32bit)
-	cmake_print_variables(CMAKE_CPP_COMPILER CMAKE_C_COMPILER CMAKE_CXX_COMPILER CMAKE_Fortran_COMPILER)
+#	cmake_print_variables(CMAKE_CPP_COMPILER CMAKE_C_COMPILER CMAKE_CXX_COMPILER CMAKE_Fortran_COMPILER)
+	cmake_print_variables(CMAKE_CPP_COMPILER CMAKE_C_COMPILER CMAKE_CXX_COMPILER)
 	cmake_print_variables(HAVE_ZLIB)
 endif ()
 
