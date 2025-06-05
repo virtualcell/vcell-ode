@@ -10,7 +10,7 @@
 #endif
 #include <iostream>
 
-#if (defined(WIN32) || defined(WIN64) )
+#if (defined(_WIN32) || defined(_WIN64) )
 #include <windows.h>
 #else
 #include <pthread.h>
@@ -20,7 +20,7 @@
 #endif
 
 #ifdef USE_MESSAGING
-#if (!defined(WIN32) && !defined(WIN64) )
+#if (!defined(_WIN32) && !defined(_WIN64) )
 #include <sys/time.h>
 #else
 #include <time.h>

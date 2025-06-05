@@ -14,7 +14,7 @@
 #include <smoldyn.h>
 
 #ifndef DIRECTORY_SEPARATOR
-#if ( defined(WIN32) || defined(WIN64) )
+#if ( defined(_WIN32) || defined(_WIN64) )
 #define DIRECTORY_SEPARATOR '\\'
 #else
 #define DIRECTORY_SEPARATOR '/'

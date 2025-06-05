@@ -2,7 +2,7 @@
  * (C) Copyright University of Connecticut Health Center 2001.
  * All rights reserved.
  */
-#ifdef WIN32
+#if defined(_WIN32) || defined(_WIN64)
 #include <Windows.h>
 #else
 #include <UnixDefs.h>

@@ -16,7 +16,7 @@ using std::endl;
 #include <zip.h>
 
 
-#if ( !defined(WIN32) && !defined(WIN64) ) // UNIX
+#if ( !defined(_WIN32) && !defined(_WIN64) ) // UNIX
 #include <unistd.h>
 #endif
 

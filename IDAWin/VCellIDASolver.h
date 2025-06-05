@@ -12,12 +12,12 @@ public:
 
 protected:
 	void updateTempRowData(double currTime);
-	void readEquations(istream& inputstream);
+	void readEquations(std::istream& inputstream);
 	void initialize();
 	string getSolverName() { return "IDA"; }
 
 private:
-	Expression** rhsExpressions;  // can be rate expression in ODE case or RHS expression in DAE case
+	VCell::Expression** rhsExpressions;  // can be rate expression in ODE case or RHS expression in DAE case
 	double **transformMatrix;
 	double **inverseTransformMatrix;
 	int numDifferential;
@@ -46,7 +46,7 @@ private:
 	Arguments 
 		t		is the current value of the independent variable.
 		y		is the current value of the dependent variable vector, y(t).
-		yp		is the current value of y0(t), the t¡derivative of y.
+		yp		is the current value of y0(t), the tï¿½derivative of y.
 		gout	is the output array, of length nrtfn, with components gi(t; y; y0).
 		g data	is a pointer to user data | the same as the g data parameter passed to IDARootInit.
 	Return value 

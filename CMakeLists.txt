@@ -5,7 +5,10 @@
 ##############################################
 cmake_minimum_required(VERSION 3.13)
 project(vcell-ode-numerics)
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
+if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
+endif ()
 enable_language(CXX)
 enable_language(C)
 #enable_language(Fortran)
@@ -17,10 +20,14 @@ if(POLICY CMP0057)
 	cmake_policy(SET CMP0057 NEW)
 endif()
 
+if (WINDOWS)
+	cmake_policy(SET CMP0091 NEW)
+endif ()
+
 #############################################
 #  Display extra CMAKE info while configuring
 ##############################################
-option(OPTION_EXTRA_CONFIG_INFO "Print useful cmake debug info while configuring" off)
+option(OPTION_EXTRA_CONFIG_INFO "Print useful cmake debug info while configuring" OFF)
 
 #############################################
 #
@@ -83,10 +90,9 @@ endif()
 #include (CheckCSourceRuns)
 #include (CheckSymbolExists)
 #include (CheckTypeSize)
-include (FindZLIB)
 
 option(OPTION_TARGET_MESSAGING "Messaging (requires libcurl)" off)
-option(OPTION_TARGET_DOCS "Generate Doxygen documentation" on)
+option(OPTION_TARGET_DOCS "Generate Doxygen documentation" off)
  
                   
 if (${OPTION_TARGET_DOCS})
@@ -225,6 +231,5 @@ if (OPTION_EXTRA_CONFIG_INFO)
 	cmake_print_variables(CMAKE_SYSTEM_NAME WINDOWS WIN32 MINGW APPLE ARCH_64bit ARCH_32bit)
 #	cmake_print_variables(CMAKE_CPP_COMPILER CMAKE_C_COMPILER CMAKE_CXX_COMPILER CMAKE_Fortran_COMPILER)
 	cmake_print_variables(CMAKE_CPP_COMPILER CMAKE_C_COMPILER CMAKE_CXX_COMPILER)
-	cmake_print_variables(HAVE_ZLIB)
 endif ()
 

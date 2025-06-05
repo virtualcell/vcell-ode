@@ -292,7 +292,7 @@ Input format:
 	((1505000.0 * (3.3222591362126253E-4 - (3.322259136212625E-4 * x_i) - (3.322259136212625E-4 * x_o))) - (100.0 * x_o));
 --------------------------------------------------------------*/
 
-void VCellIDASolver::readEquations(istream& inputstream) { 
+void VCellIDASolver::readEquations(std::istream& inputstream) {
 	try {
 		string token;
 		string exp;

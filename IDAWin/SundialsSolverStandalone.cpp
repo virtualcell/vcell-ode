@@ -38,7 +38,7 @@ void printUsage() {
 	std::cout << usageMessage << std::endl;
 }
 
-void loadJMSInfo(istream& ifsInput, int taskID) {
+void loadJMSInfo(std::istream& ifsInput, int taskID) {
 	char *broker = new char[256];
 	char *smqusername = new char[256];
 	char *password = new char[256];
@@ -59,21 +59,32 @@ void loadJMSInfo(istream& ifsInput, int taskID) {
 		}  else if (nextToken == "JMS_PARAM_END") {
 			break;
 		} else if (nextToken == "JMS_BROKER") {
+			std::string brokerStr;
+			ifsInput >> brokerStr;
 			memset(broker, 0, 256 * sizeof(char));
-			ifsInput >> broker;
+			strncpy(broker, brokerStr.c_str(), 256);
 		} else if (nextToken == "JMS_USER") {
+			std::string usernameStr, passwordStr;
+			ifsInput >> usernameStr >> passwordStr;
 			memset(smqusername, 0, 256 * sizeof(char));
 			memset(password, 0, 256 * sizeof(char));
-			ifsInput >> smqusername >> password;
+			strncpy(smqusername, usernameStr.c_str(), 256);
+			strncpy(password, passwordStr.c_str(), 256);
 		} else if (nextToken == "JMS_QUEUE") {
+			std::string qnameStr;
+			ifsInput >> qnameStr;
 			memset(qname, 0, 256 * sizeof(char));
-			ifsInput >> qname;
+			strncpy(qname, qnameStr.c_str(), 256);
 		} else if (nextToken == "JMS_TOPIC") {
+			std::string topicStr;
+			ifsInput >> topicStr;
 			memset(tname, 0, 256 * sizeof(char));
-			ifsInput >> tname;
+			strncpy(tname, topicStr.c_str(), 256);
 		} else if (nextToken == "VCELL_USER") {
+			std::string vcusernameStr;
+			ifsInput >> vcusernameStr;
 			memset(vcusername, 0, 256 * sizeof(char));
-			ifsInput >> vcusername;
+			strncpy(vcusername, vcusernameStr.c_str(), 256);
 		} else if (nextToken == "SIMULATION_KEY") {
 			ifsInput >> simKey;
 			continue;
@@ -217,7 +228,7 @@ int main(int argc, char *argv[]) {
 		} else if (solver == CVODE_SOLVER) {
 			vss = new VCellCVodeSolver();
 		} else {
-			stringstream ss;
+			std::stringstream ss;
 			ss << "Solver " << solver << " not defined!";
 			throw ss.str();
 		}

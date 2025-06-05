@@ -82,7 +82,7 @@ read_from_file(const char *archive, int flags, zip_error_t *error)
 */
 void addFilesToZip(const char *ziparchive, const char *filepath1, const char *filepath2)
 {
-#if ( !defined(WIN32) && !defined(WIN64) && defined(USE_MESSAGING)) // UNIX
+#if ( !defined(_WIN32) && !defined(_WIN64) && defined(USE_MESSAGING)) // UNIX
 #define USE_SHELL_ZIP 1
 #endif
 

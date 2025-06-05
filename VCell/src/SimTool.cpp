@@ -42,7 +42,7 @@ using std::endl;
 using std::min;
 using std::max;
 
-#if ( !defined(WIN32) && !defined(WIN64) ) // UNIX
+#if ( !defined(_WIN32) && !defined(_WIN64) ) // UNIX
 #include <unistd.h>
 #endif
 
@@ -250,7 +250,7 @@ void SimTool::setBaseFilename(char *fname) {
 }
 
 static void retryWait(int seconds) {
-#if ( defined(WIN32) || defined(WIN64) )
+#if ( defined(_WIN32) || defined(_WIN64) )
 	Sleep(seconds * 1000);
 #else
 	sleep(seconds);
@@ -531,7 +531,7 @@ void SimTool::updateLog(double progress, double time, int iteration)
 		FILE* tidFP = lockForReadWrite();
 
 		struct stat buf;
-#if ( defined(WIN32) || defined(WIN64) ) // Windows
+#if ( defined(_WIN32) || defined(_WIN64) ) // Windows
 		wstring TempPath;
 		wchar_t wcharPath[128]; // This needs to be fixed when on windows.
 		if (GetTempPathW(128, wcharPath)){

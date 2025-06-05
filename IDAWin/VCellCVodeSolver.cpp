@@ -176,7 +176,7 @@ Input format:
 	ODE x_o INIT 0.0;
 		 RATE ( - ((20.0 * x_o * D_B0) - (50.0 * x_i)) + (1505000.0 * (3.322259136212625E-4 - (3.322259136212625E-4 * x_o) - (3.322259136212625E-4 * x_i))) - (100.0 * x_o));
 */
-void VCellCVodeSolver::readEquations(istream& inputstream) { 
+void VCellCVodeSolver::readEquations(std::istream& inputstream) {
 	try {
 		string name;
 		string exp;

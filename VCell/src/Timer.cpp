@@ -26,7 +26,7 @@ Timer::Timer()
 	}
 	numTimerID=0;
 
-#if ( !defined(WIN32) && !defined(WIN64) )
+#if ( !defined(_WIN32) && !defined(_WIN64) )
 	which = ITIMER_VIRTUAL;  
 	intervalCount = 0;    // number of cycles of timer
 	interval = 40000000.0;    // initialize interval timer to 1000 seconds
@@ -39,7 +39,7 @@ Timer::Timer()
 
 void Timer::resetTimer()
 {
-#if ( !defined(WIN32) && !defined(WIN64) )
+#if ( !defined(_WIN32) && !defined(_WIN64) )
 	time.it_interval.tv_sec  = DoubleToSec(interval);
 	time.it_interval.tv_usec = DoubleToUSec(interval);
 	time.it_value.tv_sec     = DoubleToSec(value);
@@ -131,7 +131,7 @@ void Timer::show()
 
 void Timer::checkForOverflow()
 {
-#if ( !defined(WIN32) && !defined(WIN64) )
+#if ( !defined(_WIN32) && !defined(_WIN64) )
 	getitimer(which, &time);
 	double currValue = TimeToDouble(time.it_value);
 	if (currValue > value){
@@ -145,7 +145,7 @@ void Timer::checkForOverflow()
 
 double Timer::readTimer()
 {
-#if ( !defined(WIN32) && !defined(WIN64) )
+#if ( !defined(_WIN32) && !defined(_WIN64) )
 	getitimer(which, &time);
 	value = TimeToDouble(time.it_value);
 #ifndef VCELL_JTC
