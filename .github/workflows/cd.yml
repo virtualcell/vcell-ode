@@ -7,36 +7,36 @@ env:
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
-  build-and-push-image:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Log in to the Container registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
+#  build-and-push-image:
+#    runs-on: ubuntu-latest
+#    permissions:
+#      contents: read
+#      packages: write
+#
+#    steps:
+#      - name: Checkout repository
+#        uses: actions/checkout@v4
+#
+#      - name: Log in to the Container registry
+#        uses: docker/login-action@v3
+#        with:
+#          registry: ${{ env.REGISTRY }}
+#          username: ${{ github.actor }}
+#          password: ${{ secrets.GITHUB_TOKEN }}
+#
+#      - name: Extract metadata (tags, labels) for Docker
+#        id: meta
+#        uses: docker/metadata-action@v5
+#        with:
+#          images: "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
+#
+#      - name: Build and push Docker image
+#        uses: docker/build-push-action@v5
+#        with:
+#          context: .
+#          push: true
+#          tags: ${{ steps.meta.outputs.tags }}
+#          labels: ${{ steps.meta.outputs.labels }}
 
   native-build:
     name:
@@ -44,8 +44,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-13, windows-latest, ubuntu-latest, macos-14]
-
+#        platform: [macos-13, windows-latest, ubuntu-latest, macos-14]
+        platform: [macos-13, ubuntu-latest, macos-14]
 
     runs-on: ${{ matrix.platform }}
 
@@ -95,7 +95,7 @@ jobs:
           brew info boost
           brew info hdf5
 
-      - name: Build Macos ARM
+      - name: Build on ARM Macos
         if: matrix.platform == 'macos-14'
         run: |
           platform=macos
@@ -110,23 +110,12 @@ jobs:
           -G Ninja \
           -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm/bin/clang \
           -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm/bin/clang++ \
-          -DOPTION_MINGW=OFF \
           -DOPTION_TARGET_MESSAGING=OFF \
-          -DOPTION_TARGET_PARALLEL=OFF \
-          -DOPTION_TARGET_CHOMBO2D_SOLVER=OFF \
-          -DOPTION_TARGET_CHOMBO3D_SOLVER=OFF \
-          -DOPTION_TARGET_SMOLDYN_SOLVER=OFF \
-          -DOPTION_TARGET_FV_SOLVER=OFF \
-          -DOPTION_TARGET_STOCHASTIC_SOLVER=OFF \
-          -DOPTION_TARGET_NFSIM_SOLVER=OFF \
-          -DOPTION_TARGET_MOVINGBOUNDARY_SOLVER=OFF \
-          -DOPTION_TARGET_SUNDIALS_SOLVER=ON \
-          -DOPTION_TARGET_HY3S_SOLVERS=OFF \
           -B . -S ..
 
           ninja
 
-      - name: Build Macos Intel
+      - name: Build on Intel Macos
         if: matrix.platform == 'macos-13'
         run: |
           platform=macos
@@ -141,18 +130,7 @@ jobs:
           -G Ninja \
           -DCMAKE_C_COMPILER=/usr/local/opt/llvm/bin/clang \
           -DCMAKE_CXX_COMPILER=/usr/local/opt/llvm/bin/clang++ \
-          -DOPTION_MINGW=ON \
           -DOPTION_TARGET_MESSAGING=OFF \
-          -DOPTION_TARGET_PARALLEL=OFF \
-          -DOPTION_TARGET_CHOMBO2D_SOLVER=OFF \
-          -DOPTION_TARGET_CHOMBO3D_SOLVER=OFF \
-          -DOPTION_TARGET_SMOLDYN_SOLVER=ON \
-          -DOPTION_TARGET_FV_SOLVER=ON \
-          -DOPTION_TARGET_STOCHASTIC_SOLVER=ON \
-          -DOPTION_TARGET_NFSIM_SOLVER=ON \
-          -DOPTION_TARGET_MOVINGBOUNDARY_SOLVER=ON \
-          -DOPTION_TARGET_SUNDIALS_SOLVER=ON \
-          -DOPTION_TARGET_HY3S_SOLVERS=OFF \
           -B . -S ..
 
           ninja
@@ -167,21 +145,8 @@ jobs:
 
           ctest -VV
           
-          echo "------ running FiniteVolume_x64 ------"
-          ./bin/FiniteVolume_x64 || true
-          echo
-          echo "------ running NFsim_x64 ------"
-          ./bin/NFsim_x64 || true
           echo "------ running SundialsSolverStandalone_x64 ------"
           ./bin/SundialsSolverStandalone_x64 || true
-          echo "------ running VCellStoch_x64 ------"
-          ./bin/VCellStoch_x64 || true
-          echo "------ running smoldyn_x64 ------"
-          ./bin/smoldyn_x64 || true
-          echo "------ running testzip ------"
-          ./bin/testzip || true
-          echo "------ running ziptool ------"
-          ./bin/ziptool || true
 
 #      - name: Setup tmate session
 #        uses: mxschmitt/action-tmate@v3
@@ -189,92 +154,69 @@ jobs:
 #          limit-access-to-actor: false
 
 
-      - name: Install Windows Dependencies
-        if: matrix.platform == 'windows-latest'
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: CLANG64
-          update: true
-          install: >
-            zip
-            git
-            mingw-w64-clang-x86_64-curl
-            mingw-w64-clang-x86_64-toolchain
-            mingw-w64-clang-x86_64-flang
-            mingw-w64-clang-x86_64-cmake
-            mingw-w64-clang-x86_64-boost
-            mingw-w64-clang-x86_64-hdf5
-            mingw-w64-clang-x86_64-libzip
-            mingw-w64-clang-x86_64-netcdf
-            mingw-w64-clang-x86_64-zlib
-            mingw-w64-clang-x86_64-libaec
+#      - name: Install Windows Dependencies
+#        if: matrix.platform == 'windows-latest'
+#        uses: msys2/setup-msys2@v2
+#        with:
+#          msystem: CLANG64
+#          update: true
+#          install: >
+#            zip
+#            git
+#            mingw-w64-clang-x86_64-curl
+#            mingw-w64-clang-x86_64-toolchain
+#            mingw-w64-clang-x86_64-flang
+#            mingw-w64-clang-x86_64-cmake
+#            mingw-w64-clang-x86_64-boost
+#            mingw-w64-clang-x86_64-hdf5
+#            mingw-w64-clang-x86_64-libzip
+#            mingw-w64-clang-x86_64-netcdf
+#            mingw-w64-clang-x86_64-zlib
+#            mingw-w64-clang-x86_64-libaec
 
 #      - name: Setup tmate session
 #        uses: mxschmitt/action-tmate@v3
 #        with:
 #          limit-access-to-actor: false
 
-      - name: Build Windows
-        if: matrix.platform == 'windows-latest'
-        shell: msys2 {0}
-        run: |
-          platform=windows
-          echo "working dir is $PWD"
+#      - name: Build Windows
+#        if: matrix.platform == 'windows-latest'
+#        shell: msys2 {0}
+#        run: |
+#          platform=windows
+#          echo "working dir is $PWD"
+#
+#          mkdir build
+#          cd build
+#
+#          export PATH="/c/Program\ Files/LLVM/bin:$PATH"
+#
+#          cmake \
+#          -G Ninja \
+#          -DCMAKE_C_COMPILER="clang.exe" \
+#          -DCMAKE_CXX_COMPILER="clang++.exe" \
+#          -DOPTION_TARGET_MESSAGING=OFF \
+#          -DOPTION_TARGET_DOCS=OFF \
+#          -B . -S ..
+#
+#          ninja -j 1
 
-          mkdir build
-          cd build
-
-          export PATH="/c/Program\ Files/LLVM/bin:$PATH"
-
-          cmake \
-          -G Ninja \
-          -DCMAKE_C_COMPILER="clang.exe" \
-          -DCMAKE_CXX_COMPILER="clang++.exe" \
-          -DOPTION_TARGET_MESSAGING=OFF \
-          -DOPTION_TARGET_PARALLEL=OFF \
-          -DOPTION_TARGET_CHOMBO2D_SOLVER=OFF \
-          -DOPTION_TARGET_CHOMBO3D_SOLVER=OFF \
-          -DOPTION_TARGET_SMOLDYN_SOLVER=ON \
-          -DOPTION_TARGET_FV_SOLVER=ON \
-          -DOPTION_TARGET_STOCHASTIC_SOLVER=ON \
-          -DOPTION_TARGET_NFSIM_SOLVER=ON \
-          -DOPTION_TARGET_MOVINGBOUNDARY_SOLVER=OFF \
-          -DOPTION_TARGET_SUNDIALS_SOLVER=ON \
-          -DOPTION_TARGET_HY3S_SOLVERS=OFF \
-          -DOPTION_TARGET_DOCS=OFF \
-          -B . -S ..
-
-          ninja -j 1
-
-      - name: Test Windows
-        if: matrix.platform == 'windows-latest'
-        shell: msys2 {0}
-        run: |
-          platform=windows
-          echo "working dir is $PWD"
-
-          cd build
-          
-          export PATH="/d/a/_temp/msys64/clang64/bin:$PATH"
-          pacman -Sy --noconfirm diffutils
-
-          ctest -VV
-
-          echo "------ running FiniteVolume_x64 ------"
-          ./bin/FiniteVolume_x64 || true
-          echo
-          echo "------ running NFsim_x64 ------"
-          ./bin/NFsim_x64 || true
-          echo "------ running SundialsSolverStandalone_x64 ------"
-          ./bin/SundialsSolverStandalone_x64 || true
-          echo "------ running VCellStoch_x64 ------"
-          ./bin/VCellStoch_x64 || true
-          echo "------ running smoldyn_x64 ------"
-          ./bin/smoldyn_x64 || true
-          echo "------ running testzip ------"
-          ./bin/testzip || true
-          echo "------ running ziptool ------"
-          ./bin/ziptool || true
+#      - name: Test Windows
+#        if: matrix.platform == 'windows-latest'
+#        shell: msys2 {0}
+#        run: |
+#          platform=windows
+#          echo "working dir is $PWD"
+#
+#          cd build
+#
+#          export PATH="/d/a/_temp/msys64/clang64/bin:$PATH"
+#          pacman -Sy --noconfirm diffutils
+#
+#          ctest -VV
+#
+#          echo "------ running SundialsSolverStandalone_x64 ------"
+#          ./bin/SundialsSolverStandalone_x64 || true
 
       - name: Install Linux Dependencies
         if: matrix.platform == 'ubuntu-latest'
@@ -326,21 +268,8 @@ jobs:
 
           ctest -VV
 
-          echo "------ running FiniteVolume_x64 ------"
-          ./bin/FiniteVolume_x64 || true
-          echo
-          echo "------ running NFsim_x64 ------"
-          ./bin/NFsim_x64 || true
           echo "------ running SundialsSolverStandalone_x64 ------"
           ./bin/SundialsSolverStandalone_x64 || true
-          echo "------ running VCellStoch_x64 ------"
-          ./bin/VCellStoch_x64 || true
-          echo "------ running smoldyn_x64 ------"
-          ./bin/smoldyn_x64 || true
-          echo "------ running testzip ------"
-          ./bin/testzip || true
-          echo "------ running ziptool ------"
-          ./bin/ziptool || true
 
 
       - name: fix Macos shared object paths
@@ -358,20 +287,20 @@ jobs:
           ../../.github/scripts/install_name_tool_macos.sh
           tar czvf ../upload/mac64.tgz --dereference .
 
-      - name: handle shared object paths for Windows native build
-        if: matrix.platform == 'windows-latest'
-        shell: msys2 {0}
-        run: |
-          mkdir build/upload
-          cd build/bin
-          rm hello_test TestVCellStoch testzip ziptool || true
-          ls *.exe | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
-          ls *.dll | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
-          ls *.dll | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
-          chmod u+w,+x *
-          zip ../upload/win64.zip ./*
-          cd ../..
-          # fi
+#      - name: handle shared object paths for Windows native build
+#        if: matrix.platform == 'windows-latest'
+#        shell: msys2 {0}
+#        run: |
+#          mkdir build/upload
+#          cd build/bin
+#          rm hello_test TestVCellStoch testzip ziptool || true
+#          ls *.exe | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
+#          ls *.dll | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
+#          ls *.dll | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
+#          chmod u+w,+x *
+#          zip ../upload/win64.zip ./*
+#          cd ../..
+#          # fi
 
       - name: handle shared object paths for Linux native build
         if: matrix.platform == 'ubuntu-latest'
@@ -401,12 +330,12 @@ jobs:
           name: macos_arm64.tgz
           path: build/upload/mac64.tgz
 
-      - name: Upload Windows binaries
-        if: matrix.platform == 'windows-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: win64.zip
-          path: build/upload/win64.zip
+#      - name: Upload Windows binaries
+#        if: matrix.platform == 'windows-latest'
+#        uses: actions/upload-artifact@v4
+#        with:
+#          name: win64.zip
+#          path: build/upload/win64.zip
 
       - name: Upload Linux binaries
         if: matrix.platform == 'ubuntu-latest'
