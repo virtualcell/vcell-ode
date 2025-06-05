@@ -62,20 +62,11 @@ jobs:
         if: matrix.platform == 'macos-13'
         shell: bash
         run: |
-          brew install boost
-          brew install ninja
-
-          brew install llvm
-          echo 'export PATH="/usr/local/opt/llvm/bin:$PATH"' >> /Users/runner/.bash_profile
-          source /Users/runner/.bash_profile
-          ln -s $(which gfortran-14) /usr/local/bin/gfortran
-          
-          gcc --version
-          gfortran --version
-          cmake --version
-          python --version
-          brew info boost
-          brew info hdf5
+          brew install conan
+          conan --version
+          mkdir -p ~/.conan2/profiles/
+          touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
+          cp conan-profiles/CI-CD/MacOS-AMD64_profile.txt ~/.conan2/profiles/default
 
       - name: Install ARM MacOS dependencies
         if: matrix.platform == 'macos-14'
@@ -86,71 +77,49 @@ jobs:
           mkdir -p ~/.conan2/profiles/
           touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
           cp conan-profiles/CI-CD/MacOS-ARM8_profile.txt ~/.conan2/profiles/default
-          conan install . \
-               --output-folder build \
-               --build SundialsSolverStandalone_x64
-#          brew install boost
-#          brew install ninja
-#
-#          brew install llvm
-#          echo 'export PATH="/opt/homebrew/opt/llvm/bin:$PATH"' >> /Users/runner/.bash_profile
-#          ln -s /opt/homebrew/bin/gfortran-14 /usr/local/bin/gfortran
-#
-#          gcc --version
-#          gfortran --version
-#          cmake --version
-#          brew info boost
-#          brew info hdf5
 
-      - name: Build on ARM Macos
-        if: matrix.platform == 'macos-14'
+      - name: Install Linux Dependencies
+        if: matrix.platform == 'ubuntu-latest'
         run: |
-          platform=macos
+          sudo apt update
+          sudo apt upgrade -y
+          sudo apt install -y wget
+          wget --version
+          wget https://github.com/conan-io/conan/releases/download/2.17.0/conan-2.17.0-amd64.deb
+          sudo apt install -y ./conan-*.deb
+          conan --version
+          mkdir -p ~/.conan2/profiles/
+          touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
+          cp conan-profiles/CI-CD/Linux-AMD64_profile.txt ~/.conan2/profiles/default
+
+      - name: Install Dependencies through Conan on Unix
+        shell: bash
+        run: |
+          conan install . --output-folder build --build SundialsSolverStandalone_x64 
+
+#      - name: Build on Macos
+#        if: matrix.platform == 'macos-13' || matrix.platform == 'macos-14'
+#        run: |
+#          platform=macos
+#          echo "working dir is $PWD"
+#
+#          cd build
+#          export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
+#          cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Debug
+#          cmake --build .
+
+      - name: Build Unix
+        if: matrix.platform == 'ubuntu-latest' || matrix.platform == 'macos-13' || matrix.platform == 'macos-14'
+        run: |
           echo "working dir is $PWD"
-
-          cd build
-
-          export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
           
+          cd build
           cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Debug
           cmake --build .
 
-#          mkdir build
-#          cd build
-#          cmake \
-#          -G Ninja \
-#          -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm/bin/clang \
-#          -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm/bin/clang++ \
-#          -DOPTION_TARGET_MESSAGING=OFF \
-#          -B . -S ..
-#          ninja
-
-      - name: Build on Intel Macos
-        if: matrix.platform == 'macos-13'
+      - name: Test Unix
+        if: matrix.platform == 'macos-13' || matrix.platform == 'macos-14' || matrix.platform == 'ubuntu-latest'
         run: |
-          platform=macos
-          echo "working dir is $PWD"
-
-          mkdir build
-          cd build
-
-          export PATH="/usr/local/opt/llvm/bin:$PATH"
-
-          cmake \
-          -G Ninja \
-          -DCMAKE_C_COMPILER=/usr/local/opt/llvm/bin/clang \
-          -DCMAKE_CXX_COMPILER=/usr/local/opt/llvm/bin/clang++ \
-          -DOPTION_TARGET_MESSAGING=OFF \
-          -B . -S ..
-
-          ninja
-
-      - name: Test Macos
-        if: matrix.platform == 'macos-13' || matrix.platform == 'macos-14'
-        run: |
-          platform=macos
-          echo "working dir is $PWD"
-
           cd build
 
           ctest -VV
@@ -227,59 +196,6 @@ jobs:
 #
 #          echo "------ running SundialsSolverStandalone_x64 ------"
 #          ./bin/SundialsSolverStandalone_x64 || true
-
-      - name: Install Linux Dependencies
-        if: matrix.platform == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libboost-all-dev
-          sudo apt-get install -y libhdf5-dev
-          sudo apt-get install -y ninja-build
-
-          gcc --version
-          gfortran --version
-          cmake --version
-          dpkg -s libboost-all-dev
-          dpkg -s libhdf5-dev
-
-      - name: Build Linux
-        if: matrix.platform == 'ubuntu-latest'
-        run: |
-          platform=linux
-          echo "working dir is $PWD"
-
-          mkdir build
-          cd build
-
-          cmake \
-          -G Ninja \
-          -DOPTION_TARGET_MESSAGING=OFF \
-          -DOPTION_TARGET_PARALLEL=OFF \
-          -DOPTION_TARGET_CHOMBO2D_SOLVER=OFF \
-          -DOPTION_TARGET_CHOMBO3D_SOLVER=OFF \
-          -DOPTION_TARGET_SMOLDYN_SOLVER=ON \
-          -DOPTION_TARGET_FV_SOLVER=ON \
-          -DOPTION_TARGET_STOCHASTIC_SOLVER=ON \
-          -DOPTION_TARGET_NFSIM_SOLVER=ON \
-          -DOPTION_TARGET_MOVINGBOUNDARY_SOLVER=ON \
-          -DOPTION_TARGET_SUNDIALS_SOLVER=ON \
-          -DOPTION_TARGET_HY3S_SOLVERS=OFF \
-          -B . -S ..
-
-          ninja
-
-      - name: Test Linux
-        if: matrix.platform == 'ubuntu-latest'
-        run: |
-          platform=linux
-          echo "working dir is $PWD"
-
-          cd build
-
-          ctest -VV
-
-          echo "------ running SundialsSolverStandalone_x64 ------"
-          ./bin/SundialsSolverStandalone_x64 || true
 
 
       - name: fix Macos shared object paths

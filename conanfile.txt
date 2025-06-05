@@ -1,5 +1,5 @@
 [requires]
-libcurl/8.12.1
+libcurl/[<9.0]
 zlib/1.3.1
 
 [tool_requires]
