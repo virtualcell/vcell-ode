@@ -115,7 +115,7 @@ void errExit(int returnCode, std::string& errorMsg) {
 		delete SimulationMessaging::getInstVar();
 	} else {
 		if (returnCode != 0) {	
-			cerr << errorMsg << endl;
+			std::cerr << errorMsg << std::endl;
 		}
 	}
 #else
@@ -148,13 +148,13 @@ int main(int argc, char *argv[]) {
 #ifdef USE_MESSAGING
 			i ++;
 			if (i >= argc) {
-				cout << "Missing taskID!" << endl;
+				std::cout << "Missing taskID!" << std::endl;
 				printUsage();
 				exit(1);
 			}
 			for (int j = 0; j < (int)strlen(argv[i]); j ++) {
 				if (argv[i][j] < '0' || argv[i][j] > '9') {
-					cout << "Wrong argument : " << argv[i] << ", taskID must be an integer!" << endl;
+					std::cout << "Wrong argument : " << argv[i] << ", taskID must be an integer!" << std::endl;
 					printUsage();
 					exit(1);
 				}

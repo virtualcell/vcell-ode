@@ -36,8 +36,8 @@ class VCellODERecipe(ConanFile):
     def build_requirements(self):
         self.tool_requires("cmake/[>=3.13]")
         self.tool_requires("ninja/[>=1.12.1]")
-        if self.settings.os == "Linux":
-            self.tool_requires("llvm-core/19.1.7")
+        # if self.settings.os == "Linux":
+        #     self.tool_requires("llvm-core/19.1.7")
 
     def config_options(self):
         # if self.settings.os == "Linux":
