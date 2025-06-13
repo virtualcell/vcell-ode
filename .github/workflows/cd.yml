@@ -9,7 +9,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-13, windows-latest, ubuntu-latest, macos-14]
+        platform: [windows-latest, ubuntu-latest, ubuntu-24.04-arm, macos-13, macos-latest]
+        #platform: [windows-latest, windows-11-arm, ubuntu-latest, ubuntu-24.04-arm, macos-13, macos-latest]
 
     runs-on: ${{ matrix.platform }}
 
@@ -17,19 +18,14 @@ jobs:
       - name: checkout vcell-ode repo
         uses: actions/checkout@v4
 
-      - name: Install Python 3.10
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
       - name: Install Windows Dependencies (Part 0 - Setup LLVM-style)
-        if: matrix.platform == 'windows-latest'
+        if: matrix.platform == 'windows-latest' || matrix.platform == 'windows-11-arm'
         uses: llvm/actions/setup-windows@main
         with:
           arch: amd64
 
       - name: Install Windows Dependencies (Part 1 - Configure Conan ...and zip)
-        if: matrix.platform == 'windows-latest'
+        if: matrix.platform == 'windows-latest' || matrix.platform == 'windows-11-arm'
         shell: powershell
         run: |
           choco install zip -y
@@ -42,13 +38,19 @@ jobs:
           conan --version
           conan profile detect --force  
 
-      - name: Install Windows Dependencies (Part 2 - Reconfigure Conan)
+      - name: Install Windows Dependencies (Part 2 - Reconfigure Conan) <x86_64>
         if: matrix.platform == 'windows-latest'
         shell: bash
         run: |
           cp conan-profiles/CI-CD/Windows-AMD64_profile.txt $CONAN_HOME/profiles/default
 
-      - name: Install Intel MacOS dependencies
+      - name: Install Windows Dependencies (Part 2 - Reconfigure Conan) <ARM>
+        if: matrix.platform == 'windows-11-arm'
+        shell: bash
+        run: |
+          cp conan-profiles/CI-CD/Windows-ARM8_profile.txt $CONAN_HOME/profiles/default
+
+      - name: Install MacOS dependencies <x86_64>
         if: matrix.platform == 'macos-13'
         shell: bash
         run: |
@@ -58,8 +60,8 @@ jobs:
           touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
           cp conan-profiles/CI-CD/MacOS-AMD64_profile.txt ~/.conan2/profiles/default
 
-      - name: Install ARM MacOS dependencies
-        if: matrix.platform == 'macos-14'
+      - name: Install MacOS dependencies <ARM>
+        if: matrix.platform == 'macos-latest'
         shell: bash
         run: |
           brew install conan
@@ -68,7 +70,7 @@ jobs:
           touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
           cp conan-profiles/CI-CD/MacOS-ARM8_profile.txt ~/.conan2/profiles/default
 
-      - name: Install Linux Dependencies
+      - name: Install Linux Dependencies <x86_64>
         if: matrix.platform == 'ubuntu-latest'
         run: |
           sudo apt update
@@ -82,19 +84,29 @@ jobs:
           touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
           cp conan-profiles/CI-CD/Linux-AMD64_profile.txt ~/.conan2/profiles/default
 
+      - name: Install Linux Dependencies <ARM>
+        if: matrix.platform == 'ubuntu-24.04-arm'
+        run: |
+          sudo apt update
+          python3 -m pip install conan
+          conan --version
+          mkdir -p ~/.conan2/profiles/
+          touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
+          cp conan-profiles/CI-CD/Linux-ARM8_profile.txt ~/.conan2/profiles/default
+
       - name: Install Dependencies through Conan on Windows
-        if: matrix.platform == 'windows-latest'
+        if: matrix.platform == 'windows-latest' || matrix.platform == 'windows-11-arm'
         shell: powershell
         run: |
           conan install . --output-folder build --build=missing -o include_messaging=False
 
-      - name: Install Dependencies through Conan on Unix
-        if: matrix.platform == 'macos-13' || matrix.platform == 'macos-14'
+      - name: Install Dependencies through Conan on MacOS
+        if: matrix.platform == 'macos-13' || matrix.platform == 'macos-latest'
         shell: bash
         run: |
           conan install . --output-folder build --build=missing
 
-      - name: Install Dependencies through Conan on Unix
+      - name: Install Dependencies through Conan on Linux <x86_64>
         if: matrix.platform == 'ubuntu-latest'
         shell: bash
         run: |
@@ -105,8 +117,21 @@ jobs:
           sudo ln -s $(which mold) /usr/bin/ld
           conan install . --output-folder build --build=missing
 
+      - name: Install Dependencies through Conan on Linux <ARM>
+        if: matrix.platform == 'ubuntu-24.04-arm'
+        shell: bash
+        run: |
+          sudo apt --purge remove gcc
+          sudo ln -s /usr/bin/clang /usr/bin/cc
+          sudo ln -s /usr/bin/clang /usr/bin/gcc
+          sudo ln -s /usr/bin/clang++ /usr/bin/g++
+          sudo apt install mold libc++-dev libc++abi-dev
+          sudo rm /usr/bin/ld
+          sudo ln -s $(which mold) /usr/bin/ld
+          conan install . --output-folder build --build=missing
+
       - name: Build Windows
-        if: matrix.platform == 'windows-latest'
+        if: matrix.platform == 'windows-latest' || matrix.platform == 'windows-11-arm'
         shell: powershell
         run: |
           cd build
@@ -115,7 +140,7 @@ jobs:
           cmake --build . --config Release
 
       - name: Build Unix
-        if: matrix.platform == 'ubuntu-latest' || matrix.platform == 'macos-13' || matrix.platform == 'macos-14'
+        if: matrix.platform == 'ubuntu-latest' || matrix.platform == 'ubuntu-24.04-arm' || matrix.platform == 'macos-13' || matrix.platform == 'macos-latest'
         run: |
           echo "working dir is $PWD"
           
@@ -125,14 +150,14 @@ jobs:
           cmake --build . --config Release
 
       - name: Test Windows
-        if: matrix.platform == 'windows-latest'
+        if: matrix.platform == 'windows-latest' || matrix.platform == 'windows-11-arm'
         run: |
           cd build
           ctest -VV
           ./bin/SundialsSolverStandalone_x64 || true
 
       - name: Test Unix
-        if: matrix.platform == 'macos-13' || matrix.platform == 'macos-14' || matrix.platform == 'ubuntu-latest'
+        if: matrix.platform == 'ubuntu-latest' || matrix.platform == 'ubuntu-24.04-arm' || matrix.platform == 'macos-13' || matrix.platform == 'macos-latest'
         run: |
           cd build
 
@@ -143,7 +168,7 @@ jobs:
 
 
       - name: fix Macos shared object paths
-        if: matrix.platform == 'macos-13' || matrix.platform == 'macos-14'
+        if: matrix.platform == 'macos-13' || matrix.platform == 'macos-latest'
         shell: bash
         run: |
           mkdir build/upload
@@ -158,7 +183,7 @@ jobs:
           tar czvf ../upload/mac64.tgz --dereference .
 
       - name: handle shared object paths for Windows native build
-        if: matrix.platform == 'windows-latest'
+        if: matrix.platform == 'windows-latest' || matrix.platform == 'windows-11-arm'
         shell: bash
         run: |
           mkdir build/upload
@@ -174,7 +199,7 @@ jobs:
           # fi
 
       - name: handle shared object paths for Linux native build
-        if: matrix.platform == 'ubuntu-latest'
+        if: matrix.platform == 'ubuntu-latest' || matrix.platform == 'ubuntu-24.04-arm'
         shell: bash
         run: |
           mkdir build/upload
@@ -192,28 +217,42 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: macos_x86_64.tgz
-          path: build/upload/mac64.tgz
+          path: build/upload/mac_x86_64.tgz
 
       - name: Upload ARM Macos binaries
-        if: matrix.platform == 'macos-14'
+        if: matrix.platform == 'macos-latest'
         uses: actions/upload-artifact@v4
         with:
           name: macos_arm64.tgz
-          path: build/upload/mac64.tgz
+          path: build/upload/mac_arm_64.tgz
 
-      - name: Upload Windows binaries
+      - name: Upload Windows (x86_64) binaries
         if: matrix.platform == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
           name: win64.zip
-          path: build/upload/win64.zip
+          path: build/upload/win_x86_64.zip
 
-      - name: Upload Linux binaries
+      - name: Upload Windows (ARMv8) binaries
+        if: matrix.platform == 'windows-11-arm'
+        uses: actions/upload-artifact@v4
+        with:
+          name: win64.zip
+          path: build/upload/win_ARMv8_64.zip
+
+      - name: Upload Linux (x86_64) binaries
         if: matrix.platform == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
           name: linux64.tgz
-          path: build/upload/linux64.tgz
+          path: build/upload/linux_x86_64.tgz
+
+      - name: Upload Linux (ARMv8) binaries
+        if: matrix.platform == 'ubuntu-24.04-arm'
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux64.tgz
+          path: build/upload/linux_ARMv8_64.tgz
 
       - name: Setup tmate session
         if: ${{ failure() }}
