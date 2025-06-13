@@ -136,7 +136,7 @@ jobs:
         run: |
           cd build
           ./conanbuild.ps1
-          cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Debug
+          cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release
           cmake --build . --config Release
 
       - name: Build Unix
@@ -146,7 +146,7 @@ jobs:
           
           cd build
           source conanbuild.sh
-          cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Debug
+          cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release
           cmake --build . --config Release
 
       - name: Test Windows
