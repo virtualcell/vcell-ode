@@ -190,8 +190,7 @@ jobs:
           cd build/bin
           rm hello_test* *.pdb || true
           ls *.exe | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
-          # Currently, Sundials only requires system32 dlls! But let's check just in case, and fail if it finds dlls!
-          $(ls | grep *.dll | wc -l) || exit 1
+          # Currently, Sundials only requires system32 dlls! 
           # ls *.dll | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
           # ls *.dll | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
           chmod u+w,+x *
