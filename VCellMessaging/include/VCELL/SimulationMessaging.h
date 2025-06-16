@@ -9,9 +9,8 @@
 
 #endif
 #include <iostream>
-using namespace std;
 
-#if (defined(WIN32) || defined(WIN64) )
+#if (defined(_WIN32) || defined(_WIN64) )
 #include <windows.h>
 #else
 #include <pthread.h>
@@ -21,7 +20,7 @@ using namespace std;
 #endif
 
 #ifdef USE_MESSAGING
-#if (!defined(WIN32) && !defined(WIN64) )
+#if (!defined(_WIN32) && !defined(_WIN64) )
 #include <sys/time.h>
 #else
 #include <time.h>

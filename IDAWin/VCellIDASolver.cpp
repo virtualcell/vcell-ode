@@ -7,7 +7,6 @@
 #include <DivideByZeroException.h>
 #include <FunctionDomainException.h>
 #include <FunctionRangeException.h>
-#include <time.h>
 #include <sys/timeb.h>
 #include <sstream>
 using std::stringstream;
@@ -16,7 +15,7 @@ using std::stringstream;
 #include <VCELL/SimulationMessaging.h>
 #endif
 
-#include <assert.h>
+#include <cassert>
 #include <ida/ida.h>
 #include <ida/ida_dense.h>
 //#include <ida/ida_spgmr.h>
@@ -250,15 +249,15 @@ int VCellIDASolver::Residual(realtype t, N_Vector y, N_Vector yp, N_Vector resid
 		recoverableErrMsg = "";
 		return 0;
 	}catch (DivideByZeroException e){
-		cout << "failed to evaluate residual: " << e.getMessage() << endl;
+		std::cout << "failed to evaluate residual: " << e.getMessage() << std::endl;
 		recoverableErrMsg = e.getMessage();
 		return 1;
 	}catch (FunctionDomainException e){
-		cout << "failed to evaluate residual: " << e.getMessage() << endl;
+		std::cout << "failed to evaluate residual: " << e.getMessage() << std::endl;
 		recoverableErrMsg = e.getMessage();
 		return 1;
 	}catch (FunctionRangeException e){
-		cout << "failed to evaluate residual: " << e.getMessage() << endl;
+		std::cout << "failed to evaluate residual: " << e.getMessage() << std::endl;
 		recoverableErrMsg = e.getMessage();
 		return 1;
 	}
@@ -293,7 +292,7 @@ Input format:
 	((1505000.0 * (3.3222591362126253E-4 - (3.322259136212625E-4 * x_i) - (3.322259136212625E-4 * x_o))) - (100.0 * x_o));
 --------------------------------------------------------------*/
 
-void VCellIDASolver::readEquations(istream& inputstream) { 
+void VCellIDASolver::readEquations(std::istream& inputstream) {
 	try {
 		string token;
 		string exp;
@@ -493,7 +492,7 @@ void VCellIDASolver::reInit(double t) {
 	}
 	checkIDAFlag(flag);
 
-	realtype tout1 = min(ENDING_TIME, t + 2 * maxTimeStep + (1e-15));	
+	realtype tout1 = std::min(ENDING_TIME, t + 2 * maxTimeStep + (1e-15));
 	
 	flag = IDACalcIC(solver, IDA_YA_YDP_INIT, tout1);
 	checkIDAFlag(flag);
@@ -510,7 +509,7 @@ bool VCellIDASolver::fixInitialDiscontinuities(double t) {
 	double* oldy = new double[NEQ];
 	memcpy(oldy, NV_DATA_S(y), NEQ * sizeof(realtype));
 
-	double epsilon = max(1e-15, ENDING_TIME * 1e-8);
+	double epsilon = std::max(1e-15, ENDING_TIME * 1e-8);
 	double currentTime = t;
 	realtype tout = currentTime + epsilon;
 	IDASetStopTime(solver, tout);
@@ -524,7 +523,7 @@ bool VCellIDASolver::fixInitialDiscontinuities(double t) {
 	for (int i = 0; i < numDiscontinuities; i ++) {
 		double v = odeDiscontinuities[i]->discontinuityExpression->evaluateVector(values);
 		if (v != discontinuityValues[i]) {
-			cout << "update discontinuities at time " << t << " : " << odeDiscontinuities[i]->discontinuityExpression->infix() << " " << discontinuityValues[i] << " " << v << endl;
+			std::cout << "update discontinuities at time " << t << " : " << odeDiscontinuities[i]->discontinuityExpression->infix() << " " << discontinuityValues[i] << " " << v << std::endl;
 			discontinuityValues[i] = v;			
 			bInitChanged = true;
 		}
@@ -551,7 +550,7 @@ void VCellIDASolver::onIDAReturn(realtype Time, int returnCode) {
 		// flip discontinuities				
 		int flag = IDAGetRootInfo(solver, rootsFound);
 		checkIDAFlag(flag);
-		cout << endl << "idaSolve() : roots found at time " << Time << endl;
+		std::cout << std::endl << "idaSolve() : roots found at time " << Time << std::endl;
 #ifdef SUNDIALS_DEBUG
 		printVariableValues(Time);
 #endif
@@ -608,8 +607,8 @@ void VCellIDASolver::idaSolve(bool bPrintProgress, FILE* outputFile, void (*chec
 				checkStopRequested(Time, iterationCount);
 			}
 
-			double tstop = min(ENDING_TIME, Time + 2 * maxTimeStep + (1e-15));
-			tstop = min(tstop, getNextEventTime());
+			double tstop = std::min(ENDING_TIME, Time + 2 * maxTimeStep + (1e-15));
+			tstop = std::min(tstop, getNextEventTime());
 
 			IDASetStopTime(solver, tstop);
 			int returnCode = IDASolve(solver, ENDING_TIME, &Time, y, yp, IDA_ONE_STEP_TSTOP);
@@ -651,8 +650,8 @@ void VCellIDASolver::idaSolve(bool bPrintProgress, FILE* outputFile, void (*chec
 					checkStopRequested(Time, iterationCount);
 				}
 
-				double tstop = min(sampleTime, Time + 2 * maxTimeStep + (1e-15));
-				tstop = min(tstop, getNextEventTime());
+				double tstop = std::min(sampleTime, Time + 2 * maxTimeStep + (1e-15));
+				tstop = std::min(tstop, getNextEventTime());
 
 				IDASetStopTime(solver, tstop);
 				int returnCode = IDASolve(solver, sampleTime, &Time, y, yp, IDA_NORMAL_TSTOP);

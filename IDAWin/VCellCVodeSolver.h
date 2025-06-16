@@ -12,12 +12,12 @@ public:
 	double RHS(double* allValues, int equationIndex);
 
 protected:
-	void readEquations(istream& inputstream);
+	void readEquations(std::istream& inputstream);
 	void initialize();
 	string getSolverName() { return "CVODE"; }
 
 private:
-	Expression** rateExpressions;
+	VCell::Expression** rateExpressions;
 	
 	int RHS(realtype t, N_Vector y, N_Vector yp);
 	static int RHS_callback(realtype t, N_Vector y, N_Vector r, void *fdata);

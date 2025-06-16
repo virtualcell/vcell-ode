@@ -2,349 +2,173 @@ name: CD
 
 on: [push, workflow_dispatch]
 
-env:
-  REGISTRY: ghcr.io
-  IMAGE_NAME: ${{ github.repository }}
-
 jobs:
-  build-and-push-image:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      packages: write
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Log in to the Container registry
-        uses: docker/login-action@v3
-        with:
-          registry: ${{ env.REGISTRY }}
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Extract metadata (tags, labels) for Docker
-        id: meta
-        uses: docker/metadata-action@v5
-        with:
-          images: "${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}"
-
-      - name: Build and push Docker image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          push: true
-          tags: ${{ steps.meta.outputs.tags }}
-          labels: ${{ steps.meta.outputs.labels }}
-
   native-build:
     name:
       native-build-${{ matrix.platform }}
     strategy:
       fail-fast: false
       matrix:
-        platform: [macos-13, windows-latest, ubuntu-latest, macos-14]
-
+        platform: [windows-latest, ubuntu-latest, ubuntu-24.04-arm, macos-13, macos-latest]
+        #platform: [windows-latest, windows-11-arm, ubuntu-latest, ubuntu-24.04-arm, macos-13, macos-latest]
 
     runs-on: ${{ matrix.platform }}
 
     steps:
-      - name: checkout vcell-solvers repo
+      - name: checkout vcell-ode repo
         uses: actions/checkout@v4
 
-      - uses: actions/setup-python@v5
+      - name: Install Windows Dependencies (Part 0 - Setup LLVM-style)
+        if: matrix.platform == 'windows-latest' || matrix.platform == 'windows-11-arm'
+        uses: llvm/actions/setup-windows@main
         with:
-          python-version: '3.10'
+          arch: amd64
 
-      - name: Install Intel MacOS dependencies
-        if: matrix.platform == 'macos-13'
-        shell: bash
+      - name: Install Windows Dependencies (Part 1 - Configure Conan ...and zip)
+        if: matrix.platform == 'windows-latest' || matrix.platform == 'windows-11-arm'
+        shell: powershell
         run: |
-          brew install boost
-          brew install hdf5
-          brew install ninja
+          choco install zip -y
+          choco install conan -y
+          $conanDir = "C:\Program Files\Conan\conan"
+          $env:PATH = "$conanDir;$env:PATH"
+          $conanDir | Set-Content -Path $env:GITHUB_PATH
+          $env:CONAN_HOME = "C:\.conan"
+          "CONAN_HOME=C:\.conan" | Out-File -FilePath $env:GITHUB_ENV -Append
+          conan --version
+          conan profile detect --force  
 
-          brew install llvm
-          echo 'export PATH="/usr/local/opt/llvm/bin:$PATH"' >> /Users/runner/.bash_profile
-          source /Users/runner/.bash_profile
-          ln -s $(which gfortran-14) /usr/local/bin/gfortran
-          
-          gcc --version
-          gfortran --version
-          cmake --version
-          python --version
-          brew info boost
-          brew info hdf5
-
-      - name: Install ARM MacOS dependencies
-        if: matrix.platform == 'macos-14'
-        shell: bash
-        run: |
-          brew install boost
-          brew install hdf5
-          brew install ninja
-
-          brew install llvm
-          echo 'export PATH="/opt/homebrew/opt/llvm/bin:$PATH"' >> /Users/runner/.bash_profile
-          ln -s /opt/homebrew/bin/gfortran-14 /usr/local/bin/gfortran
-          
-          gcc --version
-          gfortran --version
-          cmake --version
-          brew info boost
-          brew info hdf5
-
-      - name: Build Macos ARM
-        if: matrix.platform == 'macos-14'
-        run: |
-          platform=macos
-          echo "working dir is $PWD"
-
-          mkdir build
-          cd build
-
-          export PATH="/opt/homebrew/opt/llvm/bin:$PATH"
-
-          cmake \
-          -G Ninja \
-          -DCMAKE_C_COMPILER=/opt/homebrew/opt/llvm/bin/clang \
-          -DCMAKE_CXX_COMPILER=/opt/homebrew/opt/llvm/bin/clang++ \
-          -DOPTION_MINGW=ON \
-          -DOPTION_TARGET_MESSAGING=OFF \
-          -DOPTION_TARGET_PARALLEL=OFF \
-          -DOPTION_TARGET_CHOMBO2D_SOLVER=OFF \
-          -DOPTION_TARGET_CHOMBO3D_SOLVER=OFF \
-          -DOPTION_TARGET_SMOLDYN_SOLVER=ON \
-          -DOPTION_TARGET_FV_SOLVER=ON \
-          -DOPTION_TARGET_STOCHASTIC_SOLVER=ON \
-          -DOPTION_TARGET_NFSIM_SOLVER=ON \
-          -DOPTION_TARGET_MOVINGBOUNDARY_SOLVER=ON \
-          -DOPTION_TARGET_SUNDIALS_SOLVER=ON \
-          -DOPTION_TARGET_HY3S_SOLVERS=OFF \
-          -B . -S ..
-
-          ninja
-
-      - name: Build Macos Intel
-        if: matrix.platform == 'macos-13'
-        run: |
-          platform=macos
-          echo "working dir is $PWD"
-
-          mkdir build
-          cd build
-
-          export PATH="/usr/local/opt/llvm/bin:$PATH"
-
-          cmake \
-          -G Ninja \
-          -DCMAKE_C_COMPILER=/usr/local/opt/llvm/bin/clang \
-          -DCMAKE_CXX_COMPILER=/usr/local/opt/llvm/bin/clang++ \
-          -DOPTION_MINGW=ON \
-          -DOPTION_TARGET_MESSAGING=OFF \
-          -DOPTION_TARGET_PARALLEL=OFF \
-          -DOPTION_TARGET_CHOMBO2D_SOLVER=OFF \
-          -DOPTION_TARGET_CHOMBO3D_SOLVER=OFF \
-          -DOPTION_TARGET_SMOLDYN_SOLVER=ON \
-          -DOPTION_TARGET_FV_SOLVER=ON \
-          -DOPTION_TARGET_STOCHASTIC_SOLVER=ON \
-          -DOPTION_TARGET_NFSIM_SOLVER=ON \
-          -DOPTION_TARGET_MOVINGBOUNDARY_SOLVER=ON \
-          -DOPTION_TARGET_SUNDIALS_SOLVER=ON \
-          -DOPTION_TARGET_HY3S_SOLVERS=OFF \
-          -B . -S ..
-
-          ninja
-
-      - name: Test Macos
-        if: matrix.platform == 'macos-13' || matrix.platform == 'macos-14'
-        run: |
-          platform=macos
-          echo "working dir is $PWD"
-
-          cd build
-
-          ctest -VV
-          
-          echo "------ running FiniteVolume_x64 ------"
-          ./bin/FiniteVolume_x64 || true
-          echo
-          echo "------ running NFsim_x64 ------"
-          ./bin/NFsim_x64 || true
-          echo "------ running SundialsSolverStandalone_x64 ------"
-          ./bin/SundialsSolverStandalone_x64 || true
-          echo "------ running VCellStoch_x64 ------"
-          ./bin/VCellStoch_x64 || true
-          echo "------ running smoldyn_x64 ------"
-          ./bin/smoldyn_x64 || true
-          echo "------ running testzip ------"
-          ./bin/testzip || true
-          echo "------ running ziptool ------"
-          ./bin/ziptool || true
-
-#      - name: Setup tmate session
-#        uses: mxschmitt/action-tmate@v3
-#        with:
-#          limit-access-to-actor: false
-
-
-      - name: Install Windows Dependencies
+      - name: Install Windows Dependencies (Part 2 - Reconfigure Conan) <x86_64>
         if: matrix.platform == 'windows-latest'
-        uses: msys2/setup-msys2@v2
-        with:
-          msystem: CLANG64
-          update: true
-          install: >
-            zip
-            git
-            mingw-w64-clang-x86_64-curl
-            mingw-w64-clang-x86_64-toolchain
-            mingw-w64-clang-x86_64-flang
-            mingw-w64-clang-x86_64-cmake
-            mingw-w64-clang-x86_64-boost
-            mingw-w64-clang-x86_64-hdf5
-            mingw-w64-clang-x86_64-libzip
-            mingw-w64-clang-x86_64-netcdf
-            mingw-w64-clang-x86_64-zlib
-            mingw-w64-clang-x86_64-libaec
+        shell: bash
+        run: |
+          cp conan-profiles/CI-CD/Windows-AMD64_profile.txt $CONAN_HOME/profiles/default
 
-#      - name: Setup tmate session
-#        uses: mxschmitt/action-tmate@v3
-#        with:
-#          limit-access-to-actor: false
+      - name: Install Windows Dependencies (Part 2 - Reconfigure Conan) <ARM>
+        if: matrix.platform == 'windows-11-arm'
+        shell: bash
+        run: |
+          cp conan-profiles/CI-CD/Windows-ARM64_profile.txt $CONAN_HOME/profiles/default
+
+      - name: Install MacOS dependencies <x86_64>
+        if: matrix.platform == 'macos-13'
+        shell: bash
+        run: |
+          brew install conan
+          conan --version
+          mkdir -p ~/.conan2/profiles/
+          touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
+          cp conan-profiles/CI-CD/MacOS-AMD64_profile.txt ~/.conan2/profiles/default
+
+      - name: Install MacOS dependencies <ARM>
+        if: matrix.platform == 'macos-latest'
+        shell: bash
+        run: |
+          brew install conan
+          conan --version
+          mkdir -p ~/.conan2/profiles/
+          touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
+          cp conan-profiles/CI-CD/MacOS-ARM64_profile.txt ~/.conan2/profiles/default
+
+      - name: Install Linux Dependencies <x86_64>
+        if: matrix.platform == 'ubuntu-latest'
+        run: |
+          sudo apt update
+          sudo apt upgrade -y
+          sudo apt install -y wget
+          wget --version
+          wget https://github.com/conan-io/conan/releases/download/2.17.0/conan-2.17.0-amd64.deb
+          sudo apt install -y ./conan-*.deb
+          conan --version
+          mkdir -p ~/.conan2/profiles/
+          touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
+          cp conan-profiles/CI-CD/Linux-AMD64_profile.txt ~/.conan2/profiles/default
+
+      - name: Install Linux Dependencies <ARM>
+        if: matrix.platform == 'ubuntu-24.04-arm'
+        run: |
+          sudo apt update
+          python3 -m pip install conan
+          conan --version
+          mkdir -p ~/.conan2/profiles/
+          touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
+          cp conan-profiles/CI-CD/Linux-ARM64_profile.txt ~/.conan2/profiles/default
+
+      - name: Install Dependencies through Conan on Windows
+        if: matrix.platform == 'windows-latest' || matrix.platform == 'windows-11-arm'
+        shell: powershell
+        run: |
+          conan install . --output-folder build --build=missing -o include_messaging=False
+
+      - name: Install Dependencies through Conan on MacOS
+        if: matrix.platform == 'macos-13' || matrix.platform == 'macos-latest'
+        shell: bash
+        run: |
+          conan install . --output-folder build --build=missing
+
+      - name: Install Dependencies through Conan on Linux <x86_64>
+        if: matrix.platform == 'ubuntu-latest'
+        shell: bash
+        run: |
+          sudo apt --purge remove gcc
+          sudo ln -s /usr/bin/clang /usr/bin/cc
+          sudo apt install mold libc++-dev libc++abi-dev
+          sudo rm /usr/bin/ld
+          sudo ln -s $(which mold) /usr/bin/ld
+          conan install . --output-folder build --build=missing
+
+      - name: Install Dependencies through Conan on Linux <ARM>
+        if: matrix.platform == 'ubuntu-24.04-arm'
+        shell: bash
+        run: |
+          sudo apt --purge remove gcc
+          sudo ln -s /usr/bin/clang /usr/bin/cc
+          sudo ln -s /usr/bin/clang /usr/bin/gcc
+          sudo ln -s /usr/bin/clang++ /usr/bin/g++
+          sudo apt install mold libc++-dev libc++abi-dev
+          sudo rm /usr/bin/ld
+          sudo ln -s $(which mold) /usr/bin/ld
+          conan install . --output-folder build --build=missing
 
       - name: Build Windows
-        if: matrix.platform == 'windows-latest'
-        shell: msys2 {0}
+        if: matrix.platform == 'windows-latest' || matrix.platform == 'windows-11-arm'
+        shell: powershell
         run: |
-          platform=windows
-          echo "working dir is $PWD"
-
-          mkdir build
           cd build
+          ./conanbuild.ps1
+          cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release
+          cmake --build . --config Release
 
-          export PATH="/c/Program\ Files/LLVM/bin:$PATH"
-
-          cmake \
-          -G Ninja \
-          -DCMAKE_C_COMPILER="clang.exe" \
-          -DCMAKE_CXX_COMPILER="clang++.exe" \
-          -DOPTION_TARGET_MESSAGING=OFF \
-          -DOPTION_TARGET_PARALLEL=OFF \
-          -DOPTION_TARGET_CHOMBO2D_SOLVER=OFF \
-          -DOPTION_TARGET_CHOMBO3D_SOLVER=OFF \
-          -DOPTION_TARGET_SMOLDYN_SOLVER=ON \
-          -DOPTION_TARGET_FV_SOLVER=ON \
-          -DOPTION_TARGET_STOCHASTIC_SOLVER=ON \
-          -DOPTION_TARGET_NFSIM_SOLVER=ON \
-          -DOPTION_TARGET_MOVINGBOUNDARY_SOLVER=OFF \
-          -DOPTION_TARGET_SUNDIALS_SOLVER=ON \
-          -DOPTION_TARGET_HY3S_SOLVERS=OFF \
-          -DOPTION_TARGET_DOCS=OFF \
-          -B . -S ..
-
-          ninja -j 1
+      - name: Build Unix
+        if: matrix.platform == 'ubuntu-latest' || matrix.platform == 'ubuntu-24.04-arm' || matrix.platform == 'macos-13' || matrix.platform == 'macos-latest'
+        run: |
+          echo "working dir is $PWD"
+          
+          cd build
+          source conanbuild.sh
+          cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release
+          cmake --build . --config Release
 
       - name: Test Windows
-        if: matrix.platform == 'windows-latest'
-        shell: msys2 {0}
+        if: matrix.platform == 'windows-latest' || matrix.platform == 'windows-11-arm'
         run: |
-          platform=windows
-          echo "working dir is $PWD"
-
           cd build
+          ctest -VV
+          ./bin/SundialsSolverStandalone_x64 || true
+
+      - name: Test Unix
+        if: matrix.platform == 'ubuntu-latest' || matrix.platform == 'ubuntu-24.04-arm' || matrix.platform == 'macos-13' || matrix.platform == 'macos-latest'
+        run: |
+          cd build
+
+          ctest -VV
           
-          export PATH="/d/a/_temp/msys64/clang64/bin:$PATH"
-          pacman -Sy --noconfirm diffutils
-
-          ctest -VV
-
-          echo "------ running FiniteVolume_x64 ------"
-          ./bin/FiniteVolume_x64 || true
-          echo
-          echo "------ running NFsim_x64 ------"
-          ./bin/NFsim_x64 || true
           echo "------ running SundialsSolverStandalone_x64 ------"
           ./bin/SundialsSolverStandalone_x64 || true
-          echo "------ running VCellStoch_x64 ------"
-          ./bin/VCellStoch_x64 || true
-          echo "------ running smoldyn_x64 ------"
-          ./bin/smoldyn_x64 || true
-          echo "------ running testzip ------"
-          ./bin/testzip || true
-          echo "------ running ziptool ------"
-          ./bin/ziptool || true
-
-      - name: Install Linux Dependencies
-        if: matrix.platform == 'ubuntu-latest'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y libboost-all-dev
-          sudo apt-get install -y libhdf5-dev
-          sudo apt-get install -y ninja-build
-
-          gcc --version
-          gfortran --version
-          cmake --version
-          dpkg -s libboost-all-dev
-          dpkg -s libhdf5-dev
-
-      - name: Build Linux
-        if: matrix.platform == 'ubuntu-latest'
-        run: |
-          platform=linux
-          echo "working dir is $PWD"
-
-          mkdir build
-          cd build
-
-          cmake \
-          -G Ninja \
-          -DOPTION_TARGET_MESSAGING=OFF \
-          -DOPTION_TARGET_PARALLEL=OFF \
-          -DOPTION_TARGET_CHOMBO2D_SOLVER=OFF \
-          -DOPTION_TARGET_CHOMBO3D_SOLVER=OFF \
-          -DOPTION_TARGET_SMOLDYN_SOLVER=ON \
-          -DOPTION_TARGET_FV_SOLVER=ON \
-          -DOPTION_TARGET_STOCHASTIC_SOLVER=ON \
-          -DOPTION_TARGET_NFSIM_SOLVER=ON \
-          -DOPTION_TARGET_MOVINGBOUNDARY_SOLVER=ON \
-          -DOPTION_TARGET_SUNDIALS_SOLVER=ON \
-          -DOPTION_TARGET_HY3S_SOLVERS=OFF \
-          -B . -S ..
-
-          ninja
-
-      - name: Test Linux
-        if: matrix.platform == 'ubuntu-latest'
-        run: |
-          platform=linux
-          echo "working dir is $PWD"
-
-          cd build
-
-          ctest -VV
-
-          echo "------ running FiniteVolume_x64 ------"
-          ./bin/FiniteVolume_x64 || true
-          echo
-          echo "------ running NFsim_x64 ------"
-          ./bin/NFsim_x64 || true
-          echo "------ running SundialsSolverStandalone_x64 ------"
-          ./bin/SundialsSolverStandalone_x64 || true
-          echo "------ running VCellStoch_x64 ------"
-          ./bin/VCellStoch_x64 || true
-          echo "------ running smoldyn_x64 ------"
-          ./bin/smoldyn_x64 || true
-          echo "------ running testzip ------"
-          ./bin/testzip || true
-          echo "------ running ziptool ------"
-          ./bin/ziptool || true
 
 
       - name: fix Macos shared object paths
-        if: matrix.platform == 'macos-13' || matrix.platform == 'macos-14'
+        if: matrix.platform == 'macos-13' || matrix.platform == 'macos-latest'
         shell: bash
         run: |
           mkdir build/upload
@@ -359,22 +183,23 @@ jobs:
           tar czvf ../upload/mac64.tgz --dereference .
 
       - name: handle shared object paths for Windows native build
-        if: matrix.platform == 'windows-latest'
-        shell: msys2 {0}
+        if: matrix.platform == 'windows-latest' || matrix.platform == 'windows-11-arm'
+        shell: bash
         run: |
           mkdir build/upload
           cd build/bin
-          rm hello_test TestVCellStoch testzip ziptool || true
+          rm hello_test* *.pdb || true
           ls *.exe | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
-          ls *.dll | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
-          ls *.dll | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
+          # Currently, Sundials only requires system32 dlls! 
+          # ls *.dll | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
+          # ls *.dll | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
           chmod u+w,+x *
           zip ../upload/win64.zip ./*
           cd ../..
           # fi
 
       - name: handle shared object paths for Linux native build
-        if: matrix.platform == 'ubuntu-latest'
+        if: matrix.platform == 'ubuntu-latest' || matrix.platform == 'ubuntu-24.04-arm'
         shell: bash
         run: |
           mkdir build/upload
@@ -392,28 +217,42 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: macos_x86_64.tgz
-          path: build/upload/mac64.tgz
+          path: build/upload/mac_x86_64.tgz
 
       - name: Upload ARM Macos binaries
-        if: matrix.platform == 'macos-14'
+        if: matrix.platform == 'macos-latest'
         uses: actions/upload-artifact@v4
         with:
           name: macos_arm64.tgz
-          path: build/upload/mac64.tgz
+          path: build/upload/mac_arm_64.tgz
 
-      - name: Upload Windows binaries
+      - name: Upload Windows (x86_64) binaries
         if: matrix.platform == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
           name: win64.zip
-          path: build/upload/win64.zip
+          path: build/upload/win_x86_64.zip
 
-      - name: Upload Linux binaries
+      - name: Upload Windows (ARMv8) binaries
+        if: matrix.platform == 'windows-11-arm'
+        uses: actions/upload-artifact@v4
+        with:
+          name: win64.zip
+          path: build/upload/win_ARMv8_64.zip
+
+      - name: Upload Linux (x86_64) binaries
         if: matrix.platform == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
           name: linux64.tgz
-          path: build/upload/linux64.tgz
+          path: build/upload/linux_x86_64.tgz
+
+      - name: Upload Linux (ARMv8) binaries
+        if: matrix.platform == 'ubuntu-24.04-arm'
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux64.tgz
+          path: build/upload/linux_ARMv8_64.tgz
 
       - name: Setup tmate session
         if: ${{ failure() }}

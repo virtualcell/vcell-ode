@@ -1,45 +1,44 @@
+// Debug
 #ifdef _DEBUG
-//#define _CRTDBG_MAP_ALLOC
-#ifdef _CRTDBG_MAP_ALLOC
-#include <stdlib.h>
-#include <crtdbg.h>
-#else
-//#include <vld.h>
+	//#define _CRTDBG_MAP_ALLOC
+	#ifdef _CRTDBG_MAP_ALLOC
+	#include <stdlib.h>
+	#include <crtdbg.h>
+	#else
+	//#include <vld.h>
+	#endif
 #endif
-#endif
-
+// Messaging
 #ifdef USE_MESSAGING
 #include <VCELL/SimulationMessaging.h>
 #endif
+// Standard Includes
+#include <iomanip>
+#include <fstream>
+#include <sstream>
+#include <memory.h>
+#include <cstdlib>
+// Local Includes
 #include "VCellCVodeSolver.h"
 #include "VCellIDASolver.h"
 #include "OdeResultSet.h"
 #include "StoppedByUserException.h"
 #include <VCELL/GitDescribe.h>
 
-#include <stdio.h>
-#include <iomanip>
-#include <fstream>
-#include <sstream>
-#include <string.h>
-using std::ifstream;
-using std::stringstream;
 
-#include <memory.h>
-#include <stdlib.h>
 
 #define CVODE_SOLVER "CVODE"
 #define IDA_SOLVER "IDA"
 
 void printUsage() {
-	cout << "Usage: SundialsSolverStandalone input output";
-#ifdef USE_MESSAGING
-	cout << " [-tid 0]" << endl;
-#endif
-	cout << endl;
+	std::string usageMessage{"Usage: SundialsSolverStandalone input output"};
+	#ifdef USE_MESSAGING
+	usageMessage += " [-tid 0]";
+	#endif
+	std::cout << usageMessage << std::endl;
 }
 
-void loadJMSInfo(istream& ifsInput, int taskID) {
+void loadJMSInfo(std::istream& ifsInput, int taskID) {
 	char *broker = new char[256];
 	char *smqusername = new char[256];
 	char *password = new char[256];
@@ -60,21 +59,32 @@ void loadJMSInfo(istream& ifsInput, int taskID) {
 		}  else if (nextToken == "JMS_PARAM_END") {
 			break;
 		} else if (nextToken == "JMS_BROKER") {
+			std::string brokerStr;
+			ifsInput >> brokerStr;
 			memset(broker, 0, 256 * sizeof(char));
-			ifsInput >> broker;
+			strncpy(broker, brokerStr.c_str(), 256);
 		} else if (nextToken == "JMS_USER") {
+			std::string usernameStr, passwordStr;
+			ifsInput >> usernameStr >> passwordStr;
 			memset(smqusername, 0, 256 * sizeof(char));
 			memset(password, 0, 256 * sizeof(char));
-			ifsInput >> smqusername >> password;
+			strncpy(smqusername, usernameStr.c_str(), 256);
+			strncpy(password, passwordStr.c_str(), 256);
 		} else if (nextToken == "JMS_QUEUE") {
+			std::string qnameStr;
+			ifsInput >> qnameStr;
 			memset(qname, 0, 256 * sizeof(char));
-			ifsInput >> qname;
+			strncpy(qname, qnameStr.c_str(), 256);
 		} else if (nextToken == "JMS_TOPIC") {
+			std::string topicStr;
+			ifsInput >> topicStr;
 			memset(tname, 0, 256 * sizeof(char));
-			ifsInput >> tname;
+			strncpy(tname, topicStr.c_str(), 256);
 		} else if (nextToken == "VCELL_USER") {
+			std::string vcusernameStr;
+			ifsInput >> vcusernameStr;
 			memset(vcusername, 0, 256 * sizeof(char));
-			ifsInput >> vcusername;
+			strncpy(vcusername, vcusernameStr.c_str(), 256);
 		} else if (nextToken == "SIMULATION_KEY") {
 			ifsInput >> simKey;
 			continue;
@@ -93,7 +103,7 @@ void loadJMSInfo(istream& ifsInput, int taskID) {
 #endif
 }
 
-void errExit(int returnCode, string& errorMsg) {	
+void errExit(int returnCode, std::string& errorMsg) {
 #ifdef USE_MESSAGING
 	if (returnCode != 0) {
 		if (SimulationMessaging::getInstVar() != 0 && !SimulationMessaging::getInstVar()->isStopRequested()) {
@@ -105,12 +115,12 @@ void errExit(int returnCode, string& errorMsg) {
 		delete SimulationMessaging::getInstVar();
 	} else {
 		if (returnCode != 0) {	
-			cerr << errorMsg << endl;
+			std::cerr << errorMsg << std::endl;
 		}
 	}
 #else
 	if (returnCode != 0) {	
-		cerr << errorMsg << endl;
+		std::cerr << errorMsg << std::endl;
 	}
 #endif
 }
@@ -119,7 +129,7 @@ int main(int argc, char *argv[]) {
     	std::cout 
 	    << "Sundials Standalone version " << g_GIT_DESCRIBE
 	    << std::endl; 
-	cout << setprecision(20);
+	std::cout << std::setprecision(20);
 
 	int taskID = -1;
 	string inputfname;
@@ -129,7 +139,7 @@ int main(int argc, char *argv[]) {
 	int returnCode = 0;
 
 	if (argc < 3) {
-		cout << "Missing arguments!" << endl;
+		std::cout << "Missing arguments!" << std::endl;
 		printUsage();
 		exit(1);
 	}
@@ -138,20 +148,20 @@ int main(int argc, char *argv[]) {
 #ifdef USE_MESSAGING
 			i ++;
 			if (i >= argc) {
-				cout << "Missing taskID!" << endl;
+				std::cout << "Missing taskID!" << std::endl;
 				printUsage();
 				exit(1);
 			}
 			for (int j = 0; j < (int)strlen(argv[i]); j ++) {
 				if (argv[i][j] < '0' || argv[i][j] > '9') {
-					cout << "Wrong argument : " << argv[i] << ", taskID must be an integer!" << endl;
+					std::cout << "Wrong argument : " << argv[i] << ", taskID must be an integer!" << std::endl;
 					printUsage();
 					exit(1);
 				}
 			}
 			taskID = atoi(argv[i]);
 #else
-			cout << "Wrong argument : " << argv[i] << endl;
+			std::cout << "Wrong argument : " << argv[i] << std::endl;
 			printUsage();
 			exit(1);
 #endif
@@ -163,15 +173,15 @@ int main(int argc, char *argv[]) {
 	}
 
 	FILE* outputFile = NULL;
-	ifstream inputstream(inputfname.c_str());
+	std::ifstream inputstream(inputfname.c_str());
 	try {		
 		if (!inputstream.is_open()) {
-			throw string("input file [") + inputfname + "] doesn't exit!";
+			throw std::string("input file [") + inputfname + "] doesn't exit!";
 		}
 
 		// Open the output file...		
 		if ((outputFile = fopen(argv[2], "w")) == NULL) {
-			throw string("Could not open output file[") +  outputfname + "] for writing.";
+			throw std::string("Could not open output file[") +  outputfname + "] for writing.";
 		}
 
 		string nextToken;		
@@ -218,7 +228,7 @@ int main(int argc, char *argv[]) {
 		} else if (solver == CVODE_SOLVER) {
 			vss = new VCellCVodeSolver();
 		} else {
-			stringstream ss;
+			std::stringstream ss;
 			ss << "Solver " << solver << " not defined!";
 			throw ss.str();
 		}

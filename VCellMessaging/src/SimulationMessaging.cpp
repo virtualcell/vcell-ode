@@ -9,7 +9,7 @@ using std::endl;
 
 #include <cstdio>
 #ifdef USE_MESSAGING
-#if ( !defined(WIN32) && !defined(WIN64) ) // UNIX
+#if ( !defined(_WIN32) && !defined(_WIN64) ) // UNIX
 #include <curl/curl.h>
 #include <string.h>
 #include <stdlib.h>
@@ -75,7 +75,7 @@ SimulationMessaging::SimulationMessaging(const char* broker, const char* smquser
 		memset(m_hostname, 0, 256);
 
 		// get hostname
-#if ( defined(WIN32) || defined(WIN64) )
+#if ( defined(_WIN32) || defined(_WIN64) )
 		WSADATA wsaData;
 		WORD wVersionRequested = MAKEWORD( 2, 2 );		 
 		WSAStartup( wVersionRequested, &wsaData );			
@@ -88,7 +88,7 @@ SimulationMessaging::SimulationMessaging(const char* broker, const char* smquser
 
 	workerEventOutputMode = WORKEREVENT_OUTPUT_MODE_MESSAGING;
 
-#if ( defined(WIN32) || defined(WIN64) )
+#if ( defined(_WIN32) || defined(_WIN64) )
     InitializeCriticalSection(&lockForMessaging);
 	InitializeCriticalSection(&lockForWorkerEvent);
 #else // UNIX
@@ -123,7 +123,7 @@ SimulationMessaging::~SimulationMessaging() throw()
 	*/
 #ifdef USE_MESSAGING
 	cleanup();
-#if ( defined(WIN32) || defined(WIN64) )
+#if ( defined(_WIN32) || defined(_WIN64) )
     DeleteCriticalSection(&lockForMessaging);
 	DeleteCriticalSection(&lockForWorkerEvent);
 #else // UNIX
@@ -321,7 +321,7 @@ void SimulationMessaging::sendStatus() {
 
 		time(&lastSentEventTime);
 		if (workerEvent->status == JOB_COMPLETED || workerEvent->status == JOB_FAILURE) {
-#if ( defined(WIN32) || defined(WIN64) )
+#if ( defined(_WIN32) || defined(_WIN64) )
 			SetEvent(hMessagingThreadEndEvent);
 #else // UNIX
 			cout <<  "!!!thread exiting" << endl;
@@ -372,7 +372,7 @@ void SimulationMessaging::setWorkerEvent(WorkerEvent* arg_workerEvent) {
 					events.push_back(arg_workerEvent);
 				}
 			} //unlock worker event
-#if ( defined(WIN32) || defined(WIN64) )				
+#if ( defined(_WIN32) || defined(_WIN64) )
 			SetEvent(hNewWorkerEvent);
 #else  //UNIX
 			pthread_mutex_lock(&mutex_cond_workerEvent);
@@ -408,7 +408,7 @@ void SimulationMessaging::cleanup(){
  */
 void SimulationMessaging::delay(int duration)
 {
-#if ( defined(WIN32) || defined(WIN64) )
+#if ( defined(_WIN32) || defined(_WIN64) )
     Sleep(duration);
 #else // UNIX
     sleep(duration/1000);
@@ -417,7 +417,7 @@ void SimulationMessaging::delay(int duration)
 
 bool SimulationMessaging::lockMessaging()
 {
-#if ( defined(WIN32) || defined(WIN64) )
+#if ( defined(_WIN32) || defined(_WIN64) )
     EnterCriticalSection(&lockForMessaging);
 	return true;
 #else // UNIX
@@ -430,7 +430,7 @@ bool SimulationMessaging::lockMessaging()
 
 void SimulationMessaging::unlockMessaging()
 {
-#if ( defined(WIN32) || defined(WIN64) )
+#if ( defined(_WIN32) || defined(_WIN64) )
     LeaveCriticalSection(&lockForMessaging);
 #else // UNIX
     pthread_mutex_unlock(&mutex_workerEvent);
@@ -440,7 +440,7 @@ void SimulationMessaging::unlockMessaging()
 
 bool SimulationMessaging::lockWorkerEvent(bool bTry)
 {	
-#if ( defined(WIN32) || defined(WIN64) )
+#if ( defined(_WIN32) || defined(_WIN64) )
 	if (bTry) {
 		return TryEnterCriticalSection(&lockForWorkerEvent)!=0;
 	}
@@ -463,7 +463,7 @@ bool SimulationMessaging::lockWorkerEvent(bool bTry)
 
 void SimulationMessaging::unlockWorkerEvent()
 {
-#if ( defined(WIN32) || defined(WIN64) )
+#if ( defined(_WIN32) || defined(_WIN64) )
     LeaveCriticalSection(&lockForWorkerEvent);
 #else // UNIX
     pthread_mutex_unlock(&mutex_workerEvent);
@@ -579,7 +579,7 @@ void SimulationMessaging::waitUntilFinished() {
 	if (workerEventOutputMode == WORKEREVENT_OUTPUT_MODE_STDOUT) {
 		return;
 	}
-#if ( defined(WIN32) || defined(WIN64) )
+#if ( defined(_WIN32) || defined(_WIN64) )
 	DWORD dwWaitResult = WaitForSingleObject(hMessagingThreadEndEvent, INFINITE);
 	switch (dwWaitResult) {
 	case WAIT_OBJECT_0: 
@@ -607,7 +607,7 @@ void SimulationMessaging::start() {
 	}
 	bStarted = true;
 
-#if ( defined(WIN32) || defined(WIN64) )
+#if ( defined(_WIN32) || defined(_WIN64) )
 	HANDLE hThread; 
 	DWORD IDThread; 
 
@@ -668,7 +668,7 @@ void SimulationMessaging::start() {
 void* startMessagingThread(void* lpParam){	
 	SimulationMessaging::getInstVar()->setupConnection();
 
-#if ( defined(WIN32) || defined(WIN64) )
+#if ( defined(_WIN32) || defined(_WIN64) )
     DWORD dwWaitResult;
     HANDLE hEvent; 
 	

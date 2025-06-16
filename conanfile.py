@@ -1,0 +1,55 @@
+import sys
+from conan import ConanFile
+from conan.tools.build import check_min_cppstd
+from conan.tools.cmake import CMake, cmake_layout
+
+class VCellODERecipe(ConanFile):
+    name = "vcell-ode"
+    version = "0.0.1"
+    settings = "os", "compiler", "build_type", "arch"
+    generators = "CMakeToolchain", "CMakeDeps"
+
+    options = {"shared": [True, False],
+               "fPIC": [True, False],
+               "with_fmt": [True, False],
+               "include_messaging": [True, False],
+               "generate_docs": [True, False]}
+
+    default_options = {"shared": False,
+                       "fPIC": True,
+                       "with_fmt": True,
+                       "include_messaging": True,
+                       "generate_docs": False}
+
+    def validate(self):
+        check_min_cppstd(self, "17")
+
+    def build(self):
+        cmake = CMake(self)
+        cmake.definitions["OPTION_TARGET_MESSAGING"] = "ON" if self.options.include_messaging else "OFF"
+        cmake.definitions["OPTION_TARGET_DOCS"] = "ON" if self.options.generate_docs else "OFF"
+
+    def requirements(self):
+        if self.options.include_messaging:
+            self.requires("libcurl/[<9.0]")
+
+    def build_requirements(self):
+        self.tool_requires("cmake/[>=3.13]")
+        self.tool_requires("ninja/[>=1.12.1]")
+        # if self.settings.os == "Linux":
+        #     self.tool_requires("llvm-core/19.1.7")
+
+    def config_options(self):
+        # if self.settings.os == "Linux":
+        #     self.settings.compiler.libcxx = "libc++"
+        if self.settings.os == "Windows":
+            del self.options.fPIC
+            if self.options.include_messaging:
+                print("Warning: Windows-builds do not currently support messaging. Building anyway", file=sys.stderr)
+
+
+    def configure(self):
+        if self.options.shared:
+            # If os=Windows, fPIC will have been removed in config_options()
+            # use rm_safe to avoid double delete errors
+            self.options.rm_safe("fPIC")

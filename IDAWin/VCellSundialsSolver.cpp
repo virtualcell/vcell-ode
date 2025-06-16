@@ -28,14 +28,14 @@ static void trimString(string& str)
 	}
 }
 
-Expression* VCellSundialsSolver::readExpression(istream& inputstream) {
+VCell::Expression* VCellSundialsSolver::readExpression(std::istream& inputstream) {
 	string exp;
 	getline(inputstream, exp);
 	trimString(exp);
 	if (*(exp.end() - 1) != ';') {
 		throw VCell::Exception(BAD_EXPRESSION_MSG);
 	}
-	return new Expression(exp);
+	return new VCell::Expression(exp);
 }
 
 VCellSundialsSolver::VCellSundialsSolver() {
@@ -178,7 +178,7 @@ void VCellSundialsSolver::printProgress(double currTime, double& lastPercentile,
 	}
 }
 
-void VCellSundialsSolver::readInput(istream& inputstream) { 
+void VCellSundialsSolver::readInput(std::istream& inputstream) {
 	try {
 		if (solver != 0) {
 			throw "readInput should only be called once";
@@ -242,7 +242,7 @@ void VCellSundialsSolver::readInput(istream& inputstream) {
 			} else if (name == "NUM_EQUATIONS") {
 				inputstream >> NEQ;
 				variableNames = new string[NEQ];
-				initialConditionExpressions = new Expression*[NEQ];
+				initialConditionExpressions = new VCell::Expression*[NEQ];
 				readEquations(inputstream);				
 			} else if (name == "EVENTS") {
 				readEvents(inputstream);
@@ -261,7 +261,7 @@ void VCellSundialsSolver::readInput(istream& inputstream) {
 	}
 }
 
-void VCellSundialsSolver::readEvents(istream& inputstream) {
+void VCellSundialsSolver::readEvents(std::istream& inputstream) {
 	string token;
 
 	inputstream >> numEvents;
@@ -308,7 +308,7 @@ void VCellSundialsSolver::readEvents(istream& inputstream) {
 	}
 }
 
-void VCellSundialsSolver::readDiscontinuities(istream& inputstream) {
+void VCellSundialsSolver::readDiscontinuities(std::istream& inputstream) {
 	inputstream >> numDiscontinuities;
 	odeDiscontinuities = new OdeDiscontinuity*[numDiscontinuities];
 	string line;
@@ -326,7 +326,7 @@ void VCellSundialsSolver::readDiscontinuities(istream& inputstream) {
 		}
 		exp = line.substr(0, pos + 1);
 		trimString(exp);
-		od->discontinuityExpression = new Expression(exp);
+		od->discontinuityExpression = new VCell::Expression(exp);
 
 		exp = line.substr(pos + 1);
 		trimString(exp);
@@ -334,7 +334,7 @@ void VCellSundialsSolver::readDiscontinuities(istream& inputstream) {
 			string msg = string("discontinuity root expression ") + BAD_EXPRESSION_MSG;
 			throw VCell::Exception(msg);
 		}
-		od->rootFindingExpression = new Expression(exp);
+		od->rootFindingExpression = new VCell::Expression(exp);
 
 		odeDiscontinuities[i] = od;
 	}
@@ -407,33 +407,33 @@ bool VCellSundialsSolver::updateDiscontinuities(realtype t, bool bOnRootReturn) 
 	bool bUpdated = false;
 	updateTandVariableValues(t, y);
 	for (int i = 0; i < numDiscontinuities; i ++) {
-		cout << odeDiscontinuities[i]->discontinuitySymbol << " " << odeDiscontinuities[i]->discontinuityExpression->infix() << " " << discontinuityValues[i];
+		std::cout << odeDiscontinuities[i]->discontinuitySymbol << " " << odeDiscontinuities[i]->discontinuityExpression->infix() << " " << discontinuityValues[i];
 		if (bOnRootReturn) {
 			if (rootsFound[2 * i] && rootsFound[2 * i + 1]) {
-				cout << " inverted ";
+				std::cout << " inverted ";
 				discontinuityValues[i] = discontinuityValues[i] ? 0.0 : 1.0;
 				bUpdated = true;
 			} else if (rootsFound[2 * i] || rootsFound[2 * i + 1]) {
-				cout << " evaluated ";
+				std::cout << " evaluated ";
 				double oldValue = discontinuityValues[i];
 				discontinuityValues[i] = odeDiscontinuities[i]->discontinuityExpression->evaluateVector(values);
 				if (oldValue != discontinuityValues[i]) {
 					bUpdated = true;
 				}
 			} else {
-				cout << " nonroot ";
+				std::cout << " nonroot ";
 			}
 		} else {
-			cout << " evaluated after event execution ";
+			std::cout << " evaluated after event execution ";
 			double oldValue = discontinuityValues[i];
 			discontinuityValues[i] = odeDiscontinuities[i]->discontinuityExpression->evaluateVector(values);
 			if (oldValue != discontinuityValues[i]) {
 				bUpdated = true;
 			}
 		}
-		cout << discontinuityValues[i] << endl;
+		std::cout << discontinuityValues[i] << std::endl;
 	}
-	cout << endl;
+	std::cout << std::endl;
 
 	// copy discontinuity values to values to evaluate RHS
 	if (bUpdated) {
@@ -465,14 +465,14 @@ void VCellSundialsSolver::checkDiscontinuityConsistency() {
 		double realValue = odeDiscontinuities[i]->discontinuityExpression->evaluateVector(values);
 		if (discontinuityValues[i] != realValue) {
 			stringstream ss;
-			ss << "at time " << values[0] << ", discontinuity " << odeDiscontinuities[i]->discontinuityExpression->infix() << " evaluated to " << (realValue ? "TRUE" : "FALSE") << ", solver assumed " << (discontinuityValues[i] ? "TRUE" : "FALSE") << endl;
+			ss << "at time " << values[0] << ", discontinuity " << odeDiscontinuities[i]->discontinuityExpression->infix() << " evaluated to " << (realValue ? "TRUE" : "FALSE") << ", solver assumed " << (discontinuityValues[i] ? "TRUE" : "FALSE") << std::endl;
 			throw ss.str();
 		}
 	}
 }
 
 void VCellSundialsSolver::solveInitialDiscontinuities(double t) {
-	cout << "------------------solveInitialDiscontinuities--at-time-" << t << "--------------------------" << endl;
+	std::cout << "------------------solveInitialDiscontinuities--at-time-" << t << "--------------------------" << std::endl;
 	bool bFoundRoot = false;
 	string roots_at_initial_str = "";
 	updateTandVariableValues(t, y);
@@ -485,7 +485,7 @@ void VCellSundialsSolver::solveInitialDiscontinuities(double t) {
 	}
 
 	if (bFoundRoot) {
-		cout << "solveInitialDiscontinuities() : roots found at time " << t << "; " << roots_at_initial_str << endl;
+		std::cout << "solveInitialDiscontinuities() : roots found at time " << t << "; " << roots_at_initial_str << std::endl;
 		int count = 0;
 		int maxCount = (int)pow(2.0, numDiscontinuities);
 		while (count < maxCount) {
@@ -505,25 +505,25 @@ void VCellSundialsSolver::solveInitialDiscontinuities(double t) {
 			throw str;
 		}
 	}
-	cout << "------------------------------------------------" << endl;
+	std::cout << "------------------------------------------------" << std::endl;
 }
 
 void VCellSundialsSolver::printVariableValues(realtype t) {
 	updateTandVariableValues(t, y);
-	cout << "variable values are" << endl;
-	cout << "t " << values[0] << endl;
+	std::cout << "variable values are" << std::endl;
+	std::cout << "t " << values[0] << std::endl;
 	for (int i = 0; i < NEQ; i ++) {
-		cout << variableNames[i] << " " << values[i + 1] << endl;
+		std::cout << variableNames[i] << " " << values[i + 1] << std::endl;
 	}
-	cout << endl;
+	std::cout << std::endl;
 }
 
 void VCellSundialsSolver::printDiscontinuityValues() {
-	cout << endl << "discontinuities values are" << endl;
+	std::cout << std::endl << "discontinuities values are" << std::endl;
 	for (int i = 0; i < numDiscontinuities; i ++) {
-		cout << odeDiscontinuities[i]->discontinuitySymbol << " " << odeDiscontinuities[i]->discontinuityExpression->infix() << " " << discontinuityValues[i] << endl;
+		std::cout << odeDiscontinuities[i]->discontinuitySymbol << " " << odeDiscontinuities[i]->discontinuityExpression->infix() << " " << discontinuityValues[i] << std::endl;
 	}
-	cout << endl;
+	std::cout << std::endl;
 }
 
 int VCellSundialsSolver::RootFn(realtype t, N_Vector y, realtype *gout) {
@@ -567,7 +567,7 @@ void VCellSundialsSolver::testEventTriggers(realtype Time) {
 				}
 			}
 			bool bInserted = false;
-			for (list<EventExecution*>::iterator iter = eventExeList.begin(); iter != eventExeList.end(); iter ++) {
+			for (std::list<EventExecution*>::iterator iter = eventExeList.begin(); iter != eventExeList.end(); iter ++) {
 				if ((*iter)->exeTime > ee->exeTime) {
 					eventExeList.insert(iter, ee); // sort them by execution time
 					bInserted = true;
@@ -590,7 +590,7 @@ bool VCellSundialsSolver::executeEvents(realtype Time) {
 	static double epsilon = 1e-15;
 	bool bExecuted = false;
 	while (eventExeList.size() > 0) {
-		list<EventExecution*>::iterator iter = eventExeList.begin();
+		std::list<EventExecution*>::iterator iter = eventExeList.begin();
 		EventExecution* ee = *iter;
 
 		if (ee->exeTime > Time + epsilon) { // not time yet
@@ -608,7 +608,7 @@ bool VCellSundialsSolver::executeEvents(realtype Time) {
 					y_data[ea->varIndex] = ea->assignmentExpression->evaluateVector(values);
 				}
 			}
-			cout << endl << "Executed event " << ee->event0->name << " at time " << Time << endl;
+			std::cout << std::endl << "Executed event " << ee->event0->name << " at time " << Time << std::endl;
 			eventExeList.pop_front(); // delete from the list
 			delete ee;
 			bExecuted = true;
@@ -616,7 +616,7 @@ bool VCellSundialsSolver::executeEvents(realtype Time) {
 		} else if (ee->exeTime < Time) {
 			stringstream ss;
 			ss << "missed Event '" << ee->event0->name << "' with trigger " << ee->event0->triggerExpression->infix() 
-				<< ", scheduled time = " << ee->exeTime << ", current time = " << Time << endl;
+				<< ", scheduled time = " << ee->exeTime << ", current time = " << Time << std::endl;
 			throw ss.str();
 		}
 
@@ -626,7 +626,7 @@ bool VCellSundialsSolver::executeEvents(realtype Time) {
 
 double VCellSundialsSolver::getNextEventTime() {
 	if (eventExeList.size() > 0) {
-		list<EventExecution*>::iterator iter = eventExeList.begin();
+		std::list<EventExecution*>::iterator iter = eventExeList.begin();
 		EventExecution* ee = *iter;
 		return ee->exeTime;
 	}

@@ -7,13 +7,10 @@
 #include <list>
 #include <sys/timeb.h>
 #include <time.h>
-using std::istream;
-using std::vector;
-using std::list;
-using std::stringstream;
+
 
 #include <Expression.h>
-using VCell::Expression;
+
 
 #include <nvector/nvector_serial.h>
 #include <sundials/sundials_types.h>
@@ -30,7 +27,7 @@ class OdeResultSet;
 
 struct EventAssignment {
 	int varIndex;
-	Expression* assignmentExpression;
+	VCell::Expression* assignmentExpression;
 
 	~EventAssignment() {
 		delete assignmentExpression;
@@ -42,9 +39,9 @@ struct EventAssignment {
 
 struct Event {
 	string name;
-	Expression* triggerExpression;
+	VCell::Expression* triggerExpression;
 	bool bUseValuesAtTriggerTime;
-	Expression* delayDurationExpression;
+	VCell::Expression* delayDurationExpression;
 	int numEventAssignments;
 	EventAssignment** eventAssignments;
 	bool triggerValue;	
@@ -96,8 +93,8 @@ struct EventExecution {
 
 struct OdeDiscontinuity {
 	string discontinuitySymbol;
-	Expression* discontinuityExpression;
-	Expression* rootFindingExpression;	
+	VCell::Expression* discontinuityExpression;
+	VCell::Expression* rootFindingExpression;
 
 	~OdeDiscontinuity() {
 		delete discontinuityExpression;
@@ -110,11 +107,11 @@ public:
 	VCellSundialsSolver();	
 	virtual ~VCellSundialsSolver();
 
-	void readInput(istream& inputstream);
+	void readInput(std::istream& inputstream);
 	virtual void solve(double* paramValues=0, bool bPrintProgress=false, FILE* outputFile=0, void (*checkStopRequested)(double, long)=0) = 0;
 	OdeResultSet* getResultSet() { return odeResultSet; }
 	int getNumEquations() { return NEQ; }
-	Expression** getInitialConditionExpressions() { return initialConditionExpressions; }
+	VCell::Expression** getInitialConditionExpressions() { return initialConditionExpressions; }
 	void setStartingTime(realtype newStartingTime) { STARTING_TIME = newStartingTime; }
 	void setEndingTime(realtype newEndingTime) { ENDING_TIME = newEndingTime; }
 	void setOutputTimes(int count, double* newOutputTimes);
@@ -129,7 +126,7 @@ protected:
 	// N+NPARAM+1 ~ N+NPARAM+numDiscontinuites : discontinuity values
 	realtype* values; 
 	// 0 ~ N-1 : equations
-	Expression** initialConditionExpressions; 
+	VCell::Expression** initialConditionExpressions;
 	SymbolTable* initialConditionSymbolTable;
 	OdeResultSet* odeResultSet;		// mainly for parameter optimization use but it also stores column names
 
@@ -166,8 +163,8 @@ protected:
 	void writeFileHeader(FILE* outputFile);
 	void printProgress(double currTime, double& lastPercentile, clock_t& lastTime, double increment, FILE* outputFile);
 
-	void readDiscontinuities(istream& inputstream);
-	virtual void readEquations(istream& inputstream) = 0;
+	void readDiscontinuities(std::istream& inputstream);
+	virtual void readEquations(std::istream& inputstream) = 0;
 	virtual void initialize();
 
 	void initDiscontinuities();
@@ -184,7 +181,7 @@ protected:
 	int RootFn(realtype t, N_Vector y, realtype *gout);
 	virtual string getSolverName()=0;
 
-	Expression* readExpression(istream& inputstream);
+	VCell::Expression* readExpression(std::istream& inputstream);
 	bool executeEvents(realtype Time);
 	double getNextEventTime();
 
@@ -192,9 +189,9 @@ private:
 	Event** events;
 	int numEvents;
 
-	void readEvents(istream& inputstream);
+	void readEvents(std::istream& inputstream);
 	void testEventTriggers(realtype Time);
-	list<EventExecution*> eventExeList;
+	std::list<EventExecution*> eventExeList;
 };
 
 #endif

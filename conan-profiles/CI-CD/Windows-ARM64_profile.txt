@@ -1,0 +1,17 @@
+[settings]
+os=Windows
+arch=armv8
+compiler=clang
+compiler.version=16
+compiler.libcxx=libc++
+compiler.cppstd=20
+build_type=Release
+
+[conf]
+tools.cmake.cmaketoolchain:generator=Ninja
+tools.build:compiler_executables={'c': 'clang', 'cpp': 'clang++'}
+tools.env.virtualenv:powershell=pwsh
+
+[buildenv]
+CC=clang
+CXX=clang++
