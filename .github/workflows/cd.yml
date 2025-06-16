@@ -48,7 +48,7 @@ jobs:
         if: matrix.platform == 'windows-11-arm'
         shell: bash
         run: |
-          cp conan-profiles/CI-CD/Windows-ARM8_profile.txt $CONAN_HOME/profiles/default
+          cp conan-profiles/CI-CD/Windows-ARM64_profile.txt $CONAN_HOME/profiles/default
 
       - name: Install MacOS dependencies <x86_64>
         if: matrix.platform == 'macos-13'
@@ -68,7 +68,7 @@ jobs:
           conan --version
           mkdir -p ~/.conan2/profiles/
           touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
-          cp conan-profiles/CI-CD/MacOS-ARM8_profile.txt ~/.conan2/profiles/default
+          cp conan-profiles/CI-CD/MacOS-ARM64_profile.txt ~/.conan2/profiles/default
 
       - name: Install Linux Dependencies <x86_64>
         if: matrix.platform == 'ubuntu-latest'
@@ -92,7 +92,7 @@ jobs:
           conan --version
           mkdir -p ~/.conan2/profiles/
           touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
-          cp conan-profiles/CI-CD/Linux-ARM8_profile.txt ~/.conan2/profiles/default
+          cp conan-profiles/CI-CD/Linux-ARM64_profile.txt ~/.conan2/profiles/default
 
       - name: Install Dependencies through Conan on Windows
         if: matrix.platform == 'windows-latest' || matrix.platform == 'windows-11-arm'
@@ -190,7 +190,8 @@ jobs:
           cd build/bin
           rm hello_test* *.pdb || true
           ls *.exe | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
-          # Currently, Sundials only requires system32 dlls!
+          # Currently, Sundials only requires system32 dlls! But let's check just in case, and fail if it finds dlls!
+          $(ls | grep *.dll | wc -l) || exit 1
           # ls *.dll | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
           # ls *.dll | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
           chmod u+w,+x *
