@@ -3,7 +3,7 @@
 #  Top Level CMake File
 #
 ##############################################
-cmake_minimum_required(VERSION 3.13)
+cmake_minimum_required(VERSION 3.14)
 project(vcell-ode-numerics)
 set(CMAKE_CXX_STANDARD 20)
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
@@ -195,10 +195,21 @@ set(DOWNLOAD_EXTRACT_TIMESTAMP true)
 cmake_policy(SET CMP0135 NEW)
 #############################################
 #
-#  Declare and install dependency: Google-test
+#  Declare and dynamically net-install dependencies
 #
 ##############################################
 include(FetchContent)
+#############################################
+#  Argparse
+##############################################
+FetchContent_Declare(
+		argparse
+		GIT_REPOSITORY https://github.com/p-ranav/argparse.git
+)
+FetchContent_MakeAvailable(argparse)
+#############################################
+#  GoogleTest
+##############################################
 FetchContent_Declare(
 		googletest
 		GIT_REPOSITORY https://github.com/google/googletest.git
