@@ -28,3 +28,4 @@ IDAWin/tests/smoke/SimID_1489333437_0_.ida
 CMakeUserPresets.json
 conan-build
 conan-build/*
+conan_provider.cmake
