@@ -2,7 +2,7 @@
 #define SYMBOLTABLE_H
 
 #include <string>
-using std::string;
+
 
 class SymbolTableEntry;
 

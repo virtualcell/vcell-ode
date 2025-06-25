@@ -12,15 +12,15 @@ ASTMinusTermNode::ASTMinusTermNode(int i) : Node(i) {
 ASTMinusTermNode::~ASTMinusTermNode() {
 }
 
-string ASTMinusTermNode::infixString(int lang, NameScope* nameScope)
+std::string ASTMinusTermNode::infixString(int lang, NameScope* nameScope)
 {
-	string buffer(" - ");
+	std::string buffer(" - ");
 	buffer += jjtGetChild(0)->infixString(lang,nameScope);
 	return buffer;
 }
 
 
-void ASTMinusTermNode::getStackElements(vector<StackElement>& elements) {
+void ASTMinusTermNode::getStackElements(std::vector<StackElement>& elements) {
 	jjtGetChild(0)->getStackElements(elements);
 	elements.push_back(StackElement(TYPE_SUB));
 }

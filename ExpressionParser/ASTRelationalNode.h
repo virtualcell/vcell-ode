@@ -8,9 +8,9 @@ class ASTRelationalNode : public Node
 public:
 	ASTRelationalNode(int i);
 	~ASTRelationalNode();
-	void setOperationFromToken(string op);
-	string infixString(int lang, NameScope* nameScope);
-	void getStackElements(vector<StackElement>& elements);
+	void setOperationFromToken(std::string op);
+	std::string infixString(int lang, NameScope* nameScope);
+	void getStackElements(std::vector<StackElement>& elements);
 	double evaluate(int evalType, double* values=0); 
 	bool isBoolean();
 
@@ -19,7 +19,7 @@ public:
 
 private:
 	int operation;
-	string opString;
+	std::string opString;
 	ASTRelationalNode();
 };
 

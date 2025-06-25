@@ -1,5 +1,7 @@
 #include <memory.h>
-#include <stdlib.h>
+#include <cstdlib>
+#include <istream>
+#include <vector>
 
 #include "ASTOrNode.h"
 #include "ASTAndNode.h"
@@ -24,7 +26,7 @@
 #endif
 int64 jj_la1_0[] = {0x2000,0x1000,0x30000,0x30000,0xc0000,0xc0000,0x10934000,0x10100000,0x10934000,0x40000000,};
 
-ExpressionParser::ExpressionParser(istream* stream)
+ExpressionParser::ExpressionParser(std::istream* stream)
 {	
 	init();
 	jj_input_stream = new SimpleCharStream(stream, 1, 1);
@@ -539,13 +541,13 @@ void ExpressionParser::jj_add_error_token(int kind, int pos)
 	if (pos == jj_endpos + 1) {
 		jj_lasttokens[jj_endpos++] = kind;
 	} else if (jj_endpos != 0) {		
-		jj_expentry = new vector<int>;
+		jj_expentry = new std::vector<int>;
 		for (int i = 0; i < jj_endpos; i++) {
 			jj_expentry->push_back(jj_lasttokens[i]);
 		}		
 		bool exists = false;		
-		for (vector< vector<int>* >::iterator iter = jj_expentries.begin(); iter != jj_expentries.end(); iter ++) {
-			vector<int>* oldentry = (vector<int>*)(*iter);
+		for (std::vector< std::vector<int>* >::iterator iter = jj_expentries.begin(); iter != jj_expentries.end(); iter ++) {
+			std::vector<int>* oldentry = (std::vector<int>*)(*iter);
 			if (oldentry->size() == jj_expentry->size()) {
 				exists = true;
 				for (unsigned int i = 0; i < jj_expentry->size(); i++) {
@@ -976,7 +978,7 @@ ParseException& ExpressionParser::generateParseException(void)
 	}
 	for (int i = 0; i < 31; i++) {
 		if (la1tokens[i]) {
-			jj_expentry = new vector<int>;
+			jj_expentry = new std::vector<int>;
 			jj_expentry->push_back(i);
 			jj_expentries.push_back(jj_expentry);
 		}
@@ -991,7 +993,7 @@ ParseException& ExpressionParser::generateParseException(void)
 	int* etsLengthArray = new int[numETS];	
 	int** exptokseq = new int*[numETS];
 	for (int i = 0; i < numETS; i++) {
-		vector<int>* entry = (vector<int>*)(jj_expentries.at(i));
+		std::vector<int>* entry = (std::vector<int>*)(jj_expentries.at(i));
 		etsLengthArray[i] = (int)entry->size();
 		exptokseq[i] = new int[etsLengthArray[i]];
 		for (int j = 0; j < etsLengthArray[i]; j ++) {

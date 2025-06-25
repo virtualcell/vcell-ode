@@ -11,9 +11,9 @@ ASTExpression::ASTExpression(int i) : Node(i) {
 ASTExpression::~ASTExpression() {
 }
 
-string ASTExpression::infixString(int lang, NameScope* nameScope)
+std::string ASTExpression::infixString(int lang, NameScope* nameScope)
 {
-   string buffer;
+   std::string buffer;
 
     for (int i = 0; i < jjtGetNumChildren(); i++) {
         buffer += jjtGetChild(i)->infixString(lang, nameScope);
@@ -21,7 +21,7 @@ string ASTExpression::infixString(int lang, NameScope* nameScope)
     return buffer;
 }
 
-void ASTExpression::getStackElements(vector<StackElement>& elements) {
+void ASTExpression::getStackElements(std::vector<StackElement>& elements) {
     for (int i = 0; i < jjtGetNumChildren(); i++) {
 		jjtGetChild(i)->getStackElements(elements);
     }

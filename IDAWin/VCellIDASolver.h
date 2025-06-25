@@ -2,6 +2,7 @@
 #define VCELLIDASOLVER_H
 
 #include "VCellSundialsSolver.h"
+#include <string>
 
 class VCellIDASolver : public VCellSundialsSolver {
 public:
@@ -14,7 +15,7 @@ protected:
 	void updateTempRowData(double currTime);
 	void readEquations(std::istream& inputstream);
 	void initialize();
-	string getSolverName() { return "IDA"; }
+	std::string getSolverName() { return "IDA"; }
 
 private:
 	VCell::Expression** rhsExpressions;  // can be rate expression in ODE case or RHS expression in DAE case

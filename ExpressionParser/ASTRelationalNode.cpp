@@ -32,7 +32,7 @@ bool ASTRelationalNode::isBoolean() {
 	return true;
 }
 
-void ASTRelationalNode::setOperationFromToken(string op)
+void ASTRelationalNode::setOperationFromToken(std::string op)
 {
 	if (op == ">"){
 		operation = GT;
@@ -53,9 +53,9 @@ void ASTRelationalNode::setOperationFromToken(string op)
 }
 
 
-string ASTRelationalNode::infixString(int lang, NameScope* nameScope)
+std::string ASTRelationalNode::infixString(int lang, NameScope* nameScope)
 {
-	string buffer;
+	std::string buffer;
 	if(lang == LANGUAGE_VISIT){
 	  if(jjtGetNumChildren() != 2){
 		  throw ParseException("ASTRelationalNode for VISIT expecting 2 children");
@@ -103,7 +103,7 @@ string ASTRelationalNode::infixString(int lang, NameScope* nameScope)
 	return buffer;
 }
 
-void ASTRelationalNode::getStackElements(vector<StackElement>& elements) {
+void ASTRelationalNode::getStackElements(std::vector<StackElement>& elements) {
 	for (int i=0;i<jjtGetNumChildren();i++){
 		jjtGetChild(i)->getStackElements(elements);;
 		if (i>0) 

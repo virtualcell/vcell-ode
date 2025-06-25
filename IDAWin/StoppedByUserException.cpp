@@ -1,9 +1,6 @@
 #include "StoppedByUserException.h"
 
-StoppedByUserException::StoppedByUserException(string msg) : Exception("StoppedByUserException: " + msg)
-{	
-}
+StoppedByUserException::StoppedByUserException(const string& msg)
+	: Exception("StoppedByUserException: " + msg){}
 
-StoppedByUserException::~StoppedByUserException(void) throw( )
-{
-}
+StoppedByUserException::~StoppedByUserException() noexcept = default;

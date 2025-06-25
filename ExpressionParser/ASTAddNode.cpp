@@ -13,9 +13,9 @@ ASTAddNode::ASTAddNode(int i) : Node(i) {
 ASTAddNode::~ASTAddNode() {
 }
 
-string ASTAddNode::infixString(int lang, NameScope* nameScope)
+std::string ASTAddNode::infixString(int lang, NameScope* nameScope)
 {
-	string buffer("(");
+	std::string buffer("(");
 	for (int i = 0;i < jjtGetNumChildren(); i ++){
 		ASTMinusTermNode* pointer = dynamic_cast<ASTMinusTermNode*>(jjtGetChild(i));
 		if (pointer){
@@ -31,7 +31,7 @@ string ASTAddNode::infixString(int lang, NameScope* nameScope)
 	return buffer;
 }
 
-void ASTAddNode::getStackElements(vector<StackElement>& elements) {
+void ASTAddNode::getStackElements(std::vector<StackElement>& elements) {
 	for (int i = 0;i < jjtGetNumChildren(); i ++){
 		jjtGetChild(i)->getStackElements(elements);
 		if (i>0) 

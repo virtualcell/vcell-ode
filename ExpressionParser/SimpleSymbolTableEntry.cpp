@@ -1,7 +1,7 @@
 #include "SimpleSymbolTableEntry.h"
 #include "ExpressionException.h"
 
-SimpleSymbolTableEntry::SimpleSymbolTableEntry(const string& nameValue, int indexVal, NameScope* namescopeVal, ValueProxy* proxyVal)
+SimpleSymbolTableEntry::SimpleSymbolTableEntry(const std::string& nameValue, int indexVal, NameScope* namescopeVal, ValueProxy* proxyVal)
  : name(nameValue), index(indexVal), namescope(namescopeVal), valueProxy(proxyVal)
 {
 	bConstant = false;
@@ -28,7 +28,7 @@ int SimpleSymbolTableEntry::getIndex() {
 	return index;
 }
 
-string& SimpleSymbolTableEntry::getName() {
+std::string& SimpleSymbolTableEntry::getName() {
 	return name;
 }
 

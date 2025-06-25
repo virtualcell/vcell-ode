@@ -18,15 +18,15 @@ ASTPowerNode::ASTPowerNode(int i) : Node(i) {
 ASTPowerNode::~ASTPowerNode() {
 }
 
-string ASTPowerNode::infixString(int lang, NameScope* nameScope)
+std::string ASTPowerNode::infixString(int lang, NameScope* nameScope)
 {
     if (jjtGetNumChildren() != 2) {
 		char ch[20];
 		sprintf(ch, "%d\0", jjtGetNumChildren());
-        throw RuntimeException("There are" + string(ch) + " arguments for the power operator, expecting 2");
+        throw RuntimeException("There are" + std::string(ch) + " arguments for the power operator, expecting 2");
     }
 
-    string buffer;
+    std::string buffer;
     if (lang == LANGUAGE_DEFAULT || lang == LANGUAGE_MATLAB) {
         buffer += "(";
         buffer += jjtGetChild(0)->infixString(lang, nameScope);
@@ -44,7 +44,7 @@ string ASTPowerNode::infixString(int lang, NameScope* nameScope)
     return buffer;
 }
 
-void ASTPowerNode::getStackElements(vector<StackElement>& elements) {
+void ASTPowerNode::getStackElements(std::vector<StackElement>& elements) {
 	jjtGetChild(0)->getStackElements(elements);;
 	jjtGetChild(1)->getStackElements(elements);;
 	elements.push_back(StackElement(TYPE_POW));
@@ -83,22 +83,22 @@ double ASTPowerNode::evaluate(int evalType, double* values) {
 
 	if (exponentException == NULL && baseException == NULL) {
 		if (baseValue == 0.0 && exponentValue < 0.0) {
-			string childString = infixString(LANGUAGE_DEFAULT,0);
+			std::string childString = infixString(LANGUAGE_DEFAULT,0);
 			char problem[1000];
 			sprintf(problem, "u^v and u=0 and v=%lf<0", exponentValue);
-			string errorMsg = getFunctionDomainError(problem, values, "u", baseChild, "v", exponentChild);
+			std::string errorMsg = getFunctionDomainError(problem, values, "u", baseChild, "v", exponentChild);
 			throw DivideByZeroException(errorMsg);
 		} else if (baseValue < 0.0 && exponentValue != MathUtil::round(exponentValue)) {
 			char problem[1000];
 			sprintf(problem, "u^v and u=%lf<0 and v=%lf not an integer: undefined", baseValue, exponentValue);
-			string errorMsg = getFunctionDomainError(problem, values, "u", baseChild, "v", exponentChild);
+			std::string errorMsg = getFunctionDomainError(problem, values, "u", baseChild, "v", exponentChild);
 			throw FunctionDomainException(errorMsg);
 		} else {
 			double result = pow(baseValue, exponentValue);
 			if (MathUtil::double_infinity == -result || MathUtil::double_infinity == result || result != result) {
 				char problem[1000];
 				sprintf(problem, "u^v evaluated to %lf, u=%lf, v=%lf", result, baseValue);
-				string errorMsg = getFunctionDomainError(problem, values, "u", baseChild, "v", exponentChild);
+				std::string errorMsg = getFunctionDomainError(problem, values, "u", baseChild, "v", exponentChild);
 				throw FunctionDomainException(errorMsg);
 			}
 			return result;

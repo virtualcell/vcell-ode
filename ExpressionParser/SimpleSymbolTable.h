@@ -2,7 +2,6 @@
 #define SIMPLESYMBOLTABLE_H
 
 #include <vector>
-using std::vector;
 
 #include "SymbolTable.h"
 #include "SimpleSymbolTableEntry.h"
@@ -10,7 +9,7 @@ using std::vector;
 class SimpleSymbolTable : public SymbolTable
 {
 public:
-	SimpleSymbolTable(string* symbols, int symbolCount, ValueProxy** valueProxies=0);
+	SimpleSymbolTable(std::string* symbols, int symbolCount, ValueProxy** valueProxies=0);
 	/**
 	* non-standard copy constructor -- transfers ownership of
 	* implementation to new object; rhs will be unusable
@@ -40,7 +39,7 @@ public:
 
 private:
 	SimpleSymbolTable & operator=(const SimpleSymbolTable &);
-	vector<SimpleSymbolTableEntry*> steArray;
+	std::vector<SimpleSymbolTableEntry*> steArray;
 };
 
 #endif

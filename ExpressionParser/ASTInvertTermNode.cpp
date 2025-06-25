@@ -14,12 +14,12 @@ ASTInvertTermNode::ASTInvertTermNode(int i) : Node(i) {
 ASTInvertTermNode::~ASTInvertTermNode() {
 }
 
-string ASTInvertTermNode::infixString(int lang, NameScope* nameScope)
+std::string ASTInvertTermNode::infixString(int lang, NameScope* nameScope)
 {
 	return jjtGetChild(0)->infixString(lang,nameScope); 
 }
 
-void ASTInvertTermNode::getStackElements(vector<StackElement>& elements) {
+void ASTInvertTermNode::getStackElements(std::vector<StackElement>& elements) {
 	jjtGetChild(0)->getStackElements(elements);
 	elements.push_back(StackElement(TYPE_DIV));
 }
@@ -35,7 +35,7 @@ double ASTInvertTermNode::evaluate(int evalType, double* values) {
 		//
 		// form error message for user's consumption.
 		//
-		string errorMsg = getFunctionDomainError("divide by zero", 0, "divisor", jjtGetChild(0));
+		std::string errorMsg = getFunctionDomainError("divide by zero", 0, "divisor", jjtGetChild(0));
         throw DivideByZeroException(errorMsg);
 	} else {
 		return (1.0 / childValue);

@@ -3,18 +3,12 @@
 #include <algorithm>
 #include <sstream>
 #include <utility>
-using std::cerr;
-using std::cout;
-using std::endl;
 
 #include <cstdio>
 #ifdef USE_MESSAGING
 #if ( !defined(_WIN32) && !defined(_WIN64) ) // UNIX
 #include <curl/curl.h>
-#include <string.h>
-#include <stdlib.h>
-#include <signal.h>
-#include <errno.h>
+#include <csignal>
 #endif
 
 static const char* TIMETOLIVE_PROPERTY    = "JMSTimeToLive";
@@ -283,19 +277,19 @@ void SimulationMessaging::sendStatus() {
 			const char* messaging_http_url = s_url.c_str();
 			curl_easy_setopt(curl, CURLOPT_URL, messaging_http_url);
 
-			cout << "curl -XPOST " << messaging_http_url << endl;
+			std::cout << "curl -XPOST " << messaging_http_url << std::endl;
 
 
 			//
 			// print message to stdout
 			//
-			cout << "!!!SimulationMessaging::sendStatus [" << (long)m_simKey << ":" << getStatusString(workerEvent->status);
+			std::cout << "!!!SimulationMessaging::sendStatus [" << (long)m_simKey << ":" << getStatusString(workerEvent->status);
 			if (revisedMsg != NULL) {
-				cout << ":" << revisedMsg;
+				std::cout << ":" << revisedMsg;
 			} else {
-				cout << ":" << workerEvent->progress << ":" << workerEvent->timepoint;
+				std::cout << ":" << workerEvent->progress << ":" << workerEvent->timepoint;
 			}
-			cout << "]" << endl;
+			std::cout << "]" << std::endl;
 
 
 
@@ -324,7 +318,7 @@ void SimulationMessaging::sendStatus() {
 #if ( defined(_WIN32) || defined(_WIN64) )
 			SetEvent(hMessagingThreadEndEvent);
 #else // UNIX
-			cout <<  "!!!thread exiting" << endl;
+			std::cout <<  "!!!thread exiting" << std::endl;
 			pthread_exit(NULL);
 #endif
 		}
@@ -422,7 +416,7 @@ bool SimulationMessaging::lockMessaging()
 	return true;
 #else // UNIX
     if (pthread_mutex_lock(&mutex_messaging)) {
-        cout << "Cannot acquire mutex, fatal error." << endl;
+        std::cout << "Cannot acquire mutex, fatal error." << std::endl;
         exit(1);
     }
 #endif
@@ -591,7 +585,7 @@ void SimulationMessaging::waitUntilFinished() {
 		break;
 	}
 #else
-	cout << "!!!waiting for thread to exit" << endl;
+	std::cout << "!!!waiting for thread to exit" << std::endl;
 	pthread_join(newWorkerEventThread, NULL);
 #endif
 }
@@ -746,7 +740,7 @@ void* startMessagingThread(void* lpParam){
 				break; 
 
 			default:
-				std::cout<< "Wait error: " << waitReturn << endl;
+				std::cout<< "Wait error: " << waitReturn << std::endl;
 				break;
 		}
 	}

@@ -1,6 +1,4 @@
 #include <math.h>
-#include <memory.h>
-#include <stdlib.h>
 
 #include "MathUtil.h"
 #include "Exception.h"
@@ -11,11 +9,9 @@
 #include "IOException.h"
 #include <iostream>
 #include <fstream>
+#include <vector>
 #include <algorithm>
-using std::cout;
-using std::endl;
-using std::max;
-using std::ifstream;
+
 
 ExpressionTest::ExpressionTest(void)
 {
@@ -29,9 +25,9 @@ void ExpressionTest::testEvaluateVector(void)
 {
 	try {
 		double d = 0.0;
-		cout << "Parser:  evaluating vector" << endl;
+		std::cout << "Parser:  evaluating vector" << std::endl;
 		Expression* exp = new Expression("a+b/c");
-		string ss[] = { "a", "b", "c" };
+		std::string ss[] = { "a", "b", "c" };
 		SimpleSymbolTable* simpleSymbolTable = new SimpleSymbolTable(ss, 3);
 
 		const int n = 3;
@@ -41,7 +37,7 @@ void ExpressionTest::testEvaluateVector(void)
 
 		for (int i = 0; i < n; i ++) {
 			d = exp->evaluateVector(v[i]);
-			cout << i << "." << exp->infix() << " = " << d << endl;	
+			std::cout << i << "." << exp->infix() << " = " << d << std::endl;
 		}
 		delete exp;
 		delete simpleSymbolTable;
@@ -56,10 +52,10 @@ void ExpressionTest::testEvaluateConstant(void)
 {
 	try {
 		double d = 0.0;
-		cout << "Parser:  evaluating constant" << endl;
+		std::cout << "Parser:  evaluating constant" << std::endl;
 		Expression* exp = new Expression("(3/5");
 		d = exp->evaluateConstant();
-		cout << exp->infix() << " = " << d << endl;			
+		std::cout << exp->infix() << " = " << d << std::endl;
 		delete exp;
 	} catch (Exception& ex) {
 		Exception::rethrowException(ex);
@@ -70,7 +66,7 @@ void ExpressionTest::testEvaluateConstant(void)
 
 void ExpressionTest::testParser(int count, char* javaresult, double cvalue, char* expStr, SymbolTable* symbolTable, double* values) {
 	Expression* exp = 0;
-	string badmsg;
+	std::string badmsg;
 	try {
 		double javavalue = -0.0;
 		double d = 0.0;
@@ -85,14 +81,14 @@ void ExpressionTest::testParser(int count, char* javaresult, double cvalue, char
 		} else {
 			n = sscanf(javaresult, "%lg", &javavalue);
 			if (n != 1) {
-				cout << " Not a Number:: " << javaresult ;
+				std::cout << " Not a Number:: " << javaresult ;
 				return;
 			}				
 		}
 		bool bException = false;
-		string before = Expression::trim(string(expStr));
+		std::string before = Expression::trim(std::string(expStr));
 		exp = new Expression(expStr);	
-		string exceptionMsg = "";
+		std::string exceptionMsg = "";
 		try {
 			exp->bindExpression(symbolTable);
 			d = exp->evaluateVector(values);
@@ -105,7 +101,7 @@ void ExpressionTest::testParser(int count, char* javaresult, double cvalue, char
 			//cout << count << " EVAL_YES :: all NaN" << endl;
 		} else if (javavalue == d && d == cvalue && d == dtree 
 			|| fabs(javavalue - d) < 1E-14 && fabs(cvalue - d) < 1E-14 
-			|| fabs(javavalue - d)/max(fabs(d),fabs(javavalue)) < 1E-14 && fabs(cvalue - d)/max(fabs(d),fabs(cvalue)) < 1E-14 ) {
+			|| fabs(javavalue - d)/std::max(fabs(d),fabs(javavalue)) < 1E-14 && fabs(cvalue - d)/std::max(fabs(d),fabs(cvalue)) < 1E-14 ) {
 			//cout << count << " EVAL_YES " << endl;
 		} else {			
 			if (bException) {
@@ -116,16 +112,16 @@ void ExpressionTest::testParser(int count, char* javaresult, double cvalue, char
 				//printf("Java/Infix_C/C++: %.20g/%.20g/Exception\n", count, cvalue, javavalue);
 				//cout << expStr << endl;
 			} else {
-				cout << endl << "-------------------------------------------" << endl;
+				std::cout << std::endl << "-------------------------------------------" << std::endl;
 				printf("%d.  EVAL_NO Java/Infix_C/C++ Tree/C++: %.20lg/%.20lg/%.20lg/%.20lg\n", count, javavalue, cvalue, dtree, d);	
 				printf("Java~Infix_C/Java~C++/Infix_C~C++: %.20lg/%.20lg/%.20lg/%.20lg\n", fabs((javavalue-cvalue)/javavalue), fabs((javavalue-d)/javavalue), fabs((dtree-cvalue)/cvalue), fabs((d-cvalue)/cvalue));	
-				cout << expStr << endl;
+				std::cout << expStr << std::endl;
 			}	
 		}
 		
 		delete exp;
 	} catch (Exception& ex) {
-		cout << ex.getMessage() << endl;
+		std::cout << ex.getMessage() << std::endl;
 	}
 }
 
@@ -138,7 +134,7 @@ void ExpressionTest::testParser(char* filename)
 	printf("%s=%.20lg\n", exp->infix().c_str(), d);	
 	*/
 
-	string ids[] = {"id_0", "id_1", "id_2", "id_3", 
+	std::string ids[] = {"id_0", "id_1", "id_2", "id_3",
 		"id_4", "id_5", "id_6", "id_7", "id_8", "id_9"};
 	SimpleSymbolTable* symbolTable = new SimpleSymbolTable(ids, 10); 
 
@@ -146,12 +142,12 @@ void ExpressionTest::testParser(char* filename)
 	const int n = 10;
 	double v[m][n] = {{0,1,2,3,4,5,6,7,8,9 },{ 1,2,3,4,5,6,7,8,9,10}};
 
-	ifstream ifs(filename);
+	std::ifstream ifs(filename);
 	if (!ifs.is_open()) {
-		throw IOException(string("") + "Can't open file '" + filename);
+		throw IOException(std::string("") + "Can't open file '" + filename);
 	}
 	int count = 0;
-	vector<string> badmsg;
+	std::vector<std::string> badmsg;
 	bool bInfinity = false;
 	bool bNAN = false;
 	bool bException = false;
@@ -164,7 +160,7 @@ void ExpressionTest::testParser(char* filename)
 			count ++;
 			bInfinity = false;
 			bNAN = false;
-			cout << count << "....";
+			std::cout << count << "....";
 			memset(line, 0, 1000*sizeof(char));
 			ifs >> line;
 			int n = -1;
@@ -175,19 +171,19 @@ void ExpressionTest::testParser(char* filename)
 			} else {
 				n = sscanf(line, "%lg", &value);
 				if (n != 1) {
-					cout << " Not a Number:: " << line ;
+					std::cout << " Not a Number:: " << line ;
 				}				
 			}
 			memset(line, 0, 1000*sizeof(char));
 			ifs.getline(line, 1000);		
 			if (n != 1 && !bInfinity && !bNAN) {
-				cout << line;
+				std::cout << line;
 				goto label_1;
 			}
 			bException = false;
-			string before = Expression::trim(string(line));
+			std::string before = Expression::trim(std::string(line));
 			exp = new Expression(line);	
-			string exceptionMsg = "";
+			std::string exceptionMsg = "";
 			try {
 				exp->bindExpression(symbolTable);
 				d = exp->evaluateVector(v[0]);			
@@ -196,51 +192,51 @@ void ExpressionTest::testParser(char* filename)
 				exceptionMsg = ex.getMessage();
 			}
 			if ((MathUtil::double_infinity == d || MathUtil::double_infinity == -d) && bInfinity) {
-				cout << " INFINITY:::::::::::::Before/After: Infinity/" << d;
+				std::cout << " INFINITY:::::::::::::Before/After: Infinity/" << d;
 			} else if (d != d && bNAN) {
-				cout << " NaN:::::::::::::Before/After: NaN/" << d;
-			} else if (value == d || fabs(value - d) < 1E-14 || fabs(value - d)/max(fabs(d),fabs(value)) < 1E-14) {
-				cout << " EVAL_YES ";
+				std::cout << " NaN:::::::::::::Before/After: NaN/" << d;
+			} else if (value == d || fabs(value - d) < 1E-14 || fabs(value - d)/std::max(fabs(d),fabs(value)) < 1E-14) {
+				std::cout << " EVAL_YES ";
 			} else {
-				string afterparsing = exp->infix();
+				std::string afterparsing = exp->infix();
 				if (before == afterparsing) {
-					cout << "INFIX_YES " << endl;
+					std::cout << "INFIX_YES " << std::endl;
 				} else {
-					cout << "INFIX_NO " << endl;
+					std::cout << "INFIX_NO " << std::endl;
 				}							
-				cout << "Before: " << before << endl;
-				cout << "After : " << exp->infix() << endl;			
+				std::cout << "Before: " << before << std::endl;
+				std::cout << "After : " << exp->infix() << std::endl;
 				
 				if (bException) {
 					char chrs[2560];					
 					sprintf(chrs, "%d. C++ throws exception: %s", count, exceptionMsg.c_str());
 					badmsg.push_back(chrs);
-					cout << chrs << " EVAL_NO ";
+					std::cout << chrs << " EVAL_NO ";
 					printf("Before/After: %.20g/Exception ", value);	
 				} else if (bInfinity) {
 					char chrs[256];					
 					sprintf(chrs, "%d. Java evaluation is Infinity", count);
 					badmsg.push_back(chrs);
-					cout << chrs << " EVAL_NO ";
+					std::cout << chrs << " EVAL_NO ";
 					printf("Before/After: Infinity/%.20lg ", d);	
 				} else if (bNAN) {
 					char chrs[256];					
 					sprintf(chrs, "%d. Java evaluation is NAN", count);
 					badmsg.push_back(chrs);
-					cout << chrs << " EVAL_NO ";
+					std::cout << chrs << " EVAL_NO ";
 					printf("Before/After: NAN/%.20lg ", d);	
 				} else {
-					double m = max(fabs(d),fabs(value));				
+					double m = std::max(fabs(d),fabs(value));
 					if (m < 1e-100) {
 						char chrs[256];					
 						sprintf(chrs, "%d. abs(error)=%lg", count, fabs(d-value));
 						badmsg.push_back(chrs);
-						cout << chrs << " EVAL_NO ";
+						std::cout << chrs << " EVAL_NO ";
 					} else {
 						char chrs[256];					
 						sprintf(chrs, "%d. relative(error)=%lg", count, fabs((d-value)/m));
 						badmsg.push_back(chrs);
-						cout << chrs << " EVAL_NO ";
+						std::cout << chrs << " EVAL_NO ";
 					}				
 					printf("Before/After: %.20lg/%.20lg ", value, d);	
 				}	
@@ -248,13 +244,13 @@ void ExpressionTest::testParser(char* filename)
 			
 			delete exp;
 		} catch (Exception& ex) {
-			cout << ex.getMessage() << endl;
+			std::cout << ex.getMessage() << std::endl;
 		}
 label_1:
-		cout << endl << "-------------------------------------------" << endl;
+		std::cout << std::endl << "-------------------------------------------" << std::endl;
 	}
-	cout << "BAD " << badmsg.size() << endl;
+	std::cout << "BAD " << badmsg.size() << std::endl;
 	for (int i = 0; i < badmsg.size(); i ++) {
-		cout << badmsg[i] << endl;
+		std::cout << badmsg[i] << std::endl;
 	}
 }

@@ -6,12 +6,12 @@
 class SimpleSymbolTableEntry : public SymbolTableEntry
 {
 public:
-	SimpleSymbolTableEntry(const string& nameValue, int indexVal, NameScope* namescopeVal, ValueProxy* proxyVal);
+	SimpleSymbolTableEntry(const std::string& nameValue, int indexVal, NameScope* namescopeVal, ValueProxy* proxyVal);
 	~SimpleSymbolTableEntry(void);
 	double getConstantValue();
 	VCell::Expression* getExpression();
 	int getIndex();
-	string& getName();    
+	std::string& getName();
 	NameScope* getNameScope();
 	//VCUnitDefinition getUnitDefinition()=0;
 	bool isConstant();	
@@ -20,7 +20,7 @@ public:
 	ValueProxy* getValueProxy() { return valueProxy; };
 
 private:
-	string name;	
+	std::string name;
 	int index;	
 	NameScope* namescope;
 	bool bConstant;

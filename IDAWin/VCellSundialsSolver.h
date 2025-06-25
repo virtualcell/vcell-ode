@@ -5,8 +5,6 @@
 #include <string>
 #include <vector>
 #include <list>
-#include <sys/timeb.h>
-#include <time.h>
 
 
 #include <Expression.h>
@@ -14,8 +12,6 @@
 
 #include <nvector/nvector_serial.h>
 #include <sundials/sundials_types.h>
-
-#include <stdio.h>
 
 class SymbolTable;
 class OdeResultSet;
@@ -32,47 +28,45 @@ struct EventAssignment {
 	~EventAssignment() {
 		delete assignmentExpression;
 	}
-	void bind(SymbolTable* symbolTable) {
+	void bind(SymbolTable* symbolTable) const {
 		assignmentExpression->bindExpression(symbolTable);
 	}
 };
 
 struct Event {
-	string name;
+	std::string name;
 	VCell::Expression* triggerExpression;
 	bool bUseValuesAtTriggerTime;
 	VCell::Expression* delayDurationExpression;
-	int numEventAssignments;
-	EventAssignment** eventAssignments;
+	std::vector<EventAssignment*>* eventAssignmentsVec;
 	bool triggerValue;	
 
 	Event() {
-		bUseValuesAtTriggerTime = false;
-		triggerExpression = 0;
-		triggerValue = false;
-		delayDurationExpression = 0;
-		eventAssignments = 0;		
+		this->bUseValuesAtTriggerTime = false;
+		this->triggerExpression = nullptr;
+		this->triggerValue = false;
+		this->delayDurationExpression = nullptr;
+		this->eventAssignmentsVec = new std::vector<EventAssignment*>;
 	}
 	~Event() {
-		delete triggerExpression;
-		delete delayDurationExpression;
-		for (int i = 0; i < numEventAssignments; i ++) {
-			delete eventAssignments[i];
-		}
-		delete[] eventAssignments;
+		delete this->triggerExpression;
+		delete this->delayDurationExpression;
+		for (const EventAssignment* elem : *this->eventAssignmentsVec) delete elem;
+		this->eventAssignmentsVec->clear();
+		delete this->eventAssignmentsVec;
 	}
 
-	bool hasDelay() {
-		return delayDurationExpression != 0;
+	[[nodiscard]] bool hasDelay() const {
+		return this->delayDurationExpression != nullptr;
 	}
 
-	void bind(SymbolTable* symbolTable) {
-		triggerExpression->bindExpression(symbolTable);
-		if (delayDurationExpression != 0) {
-			delayDurationExpression->bindExpression(symbolTable);
+	void bind(SymbolTable* symbolTable) const {
+		this->triggerExpression->bindExpression(symbolTable);
+		if (this->delayDurationExpression != nullptr) {
+			this->delayDurationExpression->bindExpression(symbolTable);
 		}
-		for (int i = 0; i < numEventAssignments; i ++) {
-			eventAssignments[i]->bind(symbolTable);
+		for (const EventAssignment* elem : *this->eventAssignmentsVec) {
+			elem->bind(symbolTable);
 		}
 	}
 };
@@ -83,22 +77,23 @@ struct EventExecution {
 	double* targetValues;
 
 	EventExecution(Event* e) {
-		event0 = e;
-		targetValues = 0;
+		this->exeTime = RCONST(0.0);
+		this->event0 = e;
+		this->targetValues = nullptr;
 	}
 	~EventExecution() {
-		delete targetValues;
+		delete this->targetValues;
 	}
 };
 
 struct OdeDiscontinuity {
-	string discontinuitySymbol;
+	std::string discontinuitySymbol;
 	VCell::Expression* discontinuityExpression;
 	VCell::Expression* rootFindingExpression;
 
 	~OdeDiscontinuity() {
-		delete discontinuityExpression;
-		delete rootFindingExpression;
+		delete this->discontinuityExpression;
+		delete this->rootFindingExpression;
 	}
 };
 
@@ -108,14 +103,14 @@ public:
 	virtual ~VCellSundialsSolver();
 
 	void readInput(std::istream& inputstream);
-	virtual void solve(double* paramValues=0, bool bPrintProgress=false, FILE* outputFile=0, void (*checkStopRequested)(double, long)=0) = 0;
-	OdeResultSet* getResultSet() { return odeResultSet; }
-	int getNumEquations() { return NEQ; }
-	VCell::Expression** getInitialConditionExpressions() { return initialConditionExpressions; }
-	void setStartingTime(realtype newStartingTime) { STARTING_TIME = newStartingTime; }
-	void setEndingTime(realtype newEndingTime) { ENDING_TIME = newEndingTime; }
-	void setOutputTimes(int count, double* newOutputTimes);
-	SymbolTable* getSymbolTable() { return defaultSymbolTable;}	
+	virtual void solve(double* paramValues=nullptr, bool bPrintProgress=false, FILE* outputFile=nullptr, void (*checkStopRequested)(double, long)=nullptr) = 0;
+	OdeResultSet* getResultSet() { return this->odeResultSet; }
+	[[nodiscard]] int getNumEquations() const { return this->NEQ; }
+	VCell::Expression** getInitialConditionExpressions() { return this->initialConditionExpressions; }
+	void setStartingTime(realtype newStartingTime) { this->STARTING_TIME = newStartingTime; }
+	void setEndingTime(realtype newEndingTime) { this->ENDING_TIME = newEndingTime; }
+	//void setOutputTimes(int count, double* newOutputTimes);
+	SymbolTable* getSymbolTable() { return this->defaultSymbolTable;}
 
 	static void checkStopRequested(double, long);
 
@@ -131,7 +126,7 @@ protected:
 	OdeResultSet* odeResultSet;		// mainly for parameter optimization use but it also stores column names
 
 	void* solver;	// the memory for solver
-	string recoverableErrMsg;
+	std::string recoverableErrMsg;
 
 	int NEQ;
 	int NPARAM;
@@ -141,7 +136,7 @@ protected:
 	realtype AbsoluteTolerance;
 	long keepEvery;
 	double maxTimeStep;		
-	vector<double> outputTimes;
+	std::vector<double> outputTimes;
 	double* tempRowData; // data for current time to be written to output file and to be added to odeResultSet
 
 	int numDiscontinuities;
@@ -150,9 +145,9 @@ protected:
 	double* discontinuityValues;
 	int* rootsFound;
 	
-	string* paramNames;
-	string* variableNames; // variables
-	string* allSymbols;
+	std::string* paramNames;
+	std::string* variableNames; // variables
+	std::string* allSymbols;
 	int numAllSymbols;
 	SymbolTable* defaultSymbolTable;
 
@@ -161,7 +156,7 @@ protected:
 	virtual void updateTempRowData(double currTime);
 	void writeFileData(FILE* outputFile);
 	void writeFileHeader(FILE* outputFile);
-	void printProgress(double currTime, double& lastPercentile, clock_t& lastTime, double increment, FILE* outputFile);
+	void printProgress(double currTime, double& lastPercentile, clock_t& lastTime, double increment, FILE* outputFile) const;
 
 	void readDiscontinuities(std::istream& inputstream);
 	virtual void readEquations(std::istream& inputstream) = 0;
@@ -169,7 +164,7 @@ protected:
 
 	void initDiscontinuities();
 	bool updateDiscontinuities(realtype t, bool bOnRootReturn);
-	void checkDiscontinuityConsistency();
+	void checkDiscontinuityConsistency() const;
 
 	void solveInitialDiscontinuities(double t);
 	virtual bool fixInitialDiscontinuities(double t)=0;
@@ -179,10 +174,10 @@ protected:
 	virtual void updateTandVariableValues(realtype t, N_Vector y)=0;
 
 	int RootFn(realtype t, N_Vector y, realtype *gout);
-	virtual string getSolverName()=0;
+	virtual std::string getSolverName()=0;
 
-	VCell::Expression* readExpression(std::istream& inputstream);
-	bool executeEvents(realtype Time);
+	static VCell::Expression* readExpression(std::istream& inputstream);
+	bool executeEvents(realtype realTimeVar);
 	double getNextEventTime();
 
 private:

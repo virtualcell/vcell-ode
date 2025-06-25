@@ -16,7 +16,7 @@ const int JJTFUNCNODE = 11;
 const int JJTFLOATNODE = 12;
 const int JJTIDNODE = 13;
 
-const string jjtNodeName[] = {
+const std::string jjtNodeName[] = {
 	"Expression",
 	"void",
 	"OrNode",

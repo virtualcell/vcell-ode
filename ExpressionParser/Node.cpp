@@ -3,8 +3,6 @@
 #include <stdio.h>
 #include <typeinfo>
 #include <iostream>
-using std::cout;
-using std::endl;
 
 #include "Node.h"
 #include "Expression.h"
@@ -77,8 +75,8 @@ int Node::jjtGetNumChildren() {
 	return numChildren;
 }
 
-void Node::dump(string prefix) {
-	cout << toString(prefix) << endl;
+void Node::dump(std::string prefix) {
+	std::cout << toString(prefix) << std::endl;
 	if (children != 0) {
 		for (int i = 0; i < numChildren; ++i) {
 			Node* n = children[i];
@@ -89,19 +87,19 @@ void Node::dump(string prefix) {
 	}
 }
 
-string Node::toString(string prefix)
+std::string Node::toString(std::string prefix)
 {
 	return prefix + infixString(LANGUAGE_DEFAULT, 0); 
 }
 
-void Node::getSymbols(vector<string>& symbols, int language, NameScope* nameScope)
+void Node::getSymbols(std::vector<std::string>& symbols, int language, NameScope* nameScope)
 {
 	for (int i=0;i<jjtGetNumChildren();i++){
 		jjtGetChild(i)->getSymbols(symbols, language, nameScope);
 	}	
 }
 
-SymbolTableEntry* Node::getBinding(string symbol)
+SymbolTableEntry* Node::getBinding(std::string symbol)
 {
 	for (int i=0;i<jjtGetNumChildren();i++){
 		SymbolTableEntry* ste = jjtGetChild(i)->getBinding(symbol);
@@ -123,8 +121,8 @@ bool Node::isBoolean() {
 	return false;
 }
 
-string Node::getFunctionDomainError(string problem, double* values, string argumentName1, Node* node1, string argumentName2, Node* node2){
-	string errorMsg = problem + ": " + argumentName1 + "=" + getNodeSummary(values, node1);
+std::string Node::getFunctionDomainError(std::string problem, double* values, std::string argumentName1, Node* node1, std::string argumentName2, Node* node2){
+	std::string errorMsg = problem + ": " + argumentName1 + "=" + getNodeSummary(values, node1);
 	if (node2 == 0) {
 		return errorMsg;
 	}
@@ -132,9 +130,9 @@ string Node::getFunctionDomainError(string problem, double* values, string argum
 	return errorMsg;
 }
 
-string Node::getNodeSummary(double* values, Node* node){
-	string errorMsg;
-    vector<string> symbols;
+std::string Node::getNodeSummary(double* values, Node* node){
+	std::string errorMsg;
+    std::vector<std::string> symbols;
 	node->getSymbols(symbols, LANGUAGE_DEFAULT, 0);
 	if (symbols.size() > 0) {
         errorMsg += "\"" + node->infixString(LANGUAGE_DEFAULT, 0) + "\"\n  where:\n";

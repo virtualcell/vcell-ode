@@ -2,7 +2,7 @@
 
 #include "ParseException.h"
 
-string ParseException::eol = string("\n");
+std::string ParseException::eol = string("\n");
 
 ParseException::ParseException() : Exception("ParseException", "")
 {	
@@ -38,7 +38,7 @@ ParseException::ParseException(Token* currentTokenVal, int** expectedTokenSequen
 	tokenImage = tokenImageVal;
 }
 
-string ParseException::getExactMessage(void)
+std::string ParseException::getExactMessage(void)
 {
 	if (!specialConstructor) {
 		return Exception::getExactMessage();

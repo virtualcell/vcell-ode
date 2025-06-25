@@ -1,190 +1,170 @@
+#include <stdexcept>
 #include "OdeResultSet.h"
-#include "Expression.h"
-#include "SymbolTable.h"
 #include "Exception.h"
+#include "Expression.h"
 
-#include <memory.h>
+OdeResultSet::OdeResultSet(): columnWeights(nullptr), rowData(nullptr), numRowsAllocated(0), numRowsUsed(0), numFunctionColumns(0), numDataColumns(0)
+{}
 
-OdeResultSet::OdeResultSet()
-{
-	columnWeights = NULL;
-	numFunctionColumns = 0;
-	numRowsAllocated = 0;
-	numRowsUsed = 0;
-	numDataColumns = 0;
-	rowData = 0;
-}
-
-OdeResultSet::~OdeResultSet()
-{
-	for (int i = 0; i < (int)columns.size(); i ++) {
-		delete columns[i].expression;
-	}
-	columns.clear();
+OdeResultSet::~OdeResultSet(){
+	for (const Column& column : this->columns) delete column.expression;
+	this->columns.clear();
 	delete[] rowData;
 	delete[] columnWeights;
 }
 
-void OdeResultSet::addColumn(const string& aColumn) {
-	if (numRowsAllocated != 0) {
-		throw VCell::Exception("Can't add column when rowData is not empty");
-	}
-	columns.push_back(Column(aColumn, 0));
-	numDataColumns ++;
+void OdeResultSet::addColumn(const std::string& aColumn) {
+	if (0 != this->numRowsAllocated) throw VCell::Exception("Can't add column when rowData is not empty");
+	this->columns.emplace_back(aColumn, nullptr);
+	this->numDataColumns++;
 }
 
-void OdeResultSet::bindFunctionExpression(SymbolTable* symbolTable) {
-	for (int i = 0; i < (int)columns.size(); i ++) {
-		if (columns[i].expression != 0) {
-			columns[i].expression->bindExpression(symbolTable);
-		}
+void OdeResultSet::bindFunctionExpression(SymbolTable* symbolTable) const {
+	for (const Column& column : this->columns) {
+		if (column.expression == nullptr) continue;
+		column.expression->bindExpression(symbolTable);
 	}
 }
 
-void OdeResultSet::addFunctionColumn(const string& aColumn, const string& exp) {
-	columns.push_back(Column(aColumn, new VCell::Expression(exp)));
-	numFunctionColumns ++;
+void OdeResultSet::addFunctionColumn(const std::string& aColumn, const std::string& columnExpression) {
+	this->columns.push_back(Column(aColumn, new VCell::Expression(columnExpression)));
+	this->numFunctionColumns ++;
 }
 
-void OdeResultSet::addRow(double* aRow) {
-	if (numRowsAllocated == 0) {
-		numRowsAllocated = 500;
-		rowData = new double[numRowsAllocated * numDataColumns];
-		memset(rowData, 0, numRowsAllocated * numDataColumns * sizeof(double));
-	} else if (numRowsAllocated == numRowsUsed) {
-		int oldNumRowsAllocated = numRowsAllocated;
-		double* oldRowData = rowData;
-		numRowsAllocated += 500;		
-		rowData = new double[numRowsAllocated * numDataColumns];
-		memset(rowData, 0, numRowsAllocated * numDataColumns * sizeof(double));
-		memcpy(rowData, oldRowData, oldNumRowsAllocated *  numDataColumns * sizeof(double));
+void OdeResultSet::addRow(const double* aRow) {
+	if (this->numRowsAllocated == 0) {
+		this->numRowsAllocated = 500;
+		this->rowData = new double[this->numRowsAllocated * this->numDataColumns];
+		memset(this->rowData, 0, this->numRowsAllocated * this->numDataColumns * sizeof(double));
+	} else if (this->numRowsAllocated == this->numRowsUsed) {
+		const int oldNumRowsAllocated = this->numRowsAllocated;
+		const double* oldRowData = this->rowData;
+		this->numRowsAllocated += 500;
+		this->rowData = new double[this->numRowsAllocated * this->numDataColumns];
+		memset(this->rowData, 0, this->numRowsAllocated * this->numDataColumns * sizeof(double));
+		memcpy(this->rowData, oldRowData, oldNumRowsAllocated * this->numDataColumns * sizeof(double));
 		delete[] oldRowData;
 	}
-	int index = numRowsUsed * numDataColumns;
-	for (int i = 0; i < numDataColumns; i ++, index ++) {	
-		rowData[index] = aRow[i];		
+	int index = this->numRowsUsed * this->numDataColumns;
+	for (int i = 0; i < this->numDataColumns; i ++, index ++) {
+		this->rowData[index] = aRow[i];
 	}
-	numRowsUsed ++;
+	this->numRowsUsed++;
 }
 
-void OdeResultSet::setColumnWeights(double* weights){
-	delete[] columnWeights;
-	columnWeights = new double[columns.size()];
-	memcpy(columnWeights, weights, columns.size() * sizeof(double));
+void OdeResultSet::setColumnWeights(const double* weights){
+	delete[] this->columnWeights;
+	this->columnWeights = new double[this->columns.size()];
+	memcpy(this->columnWeights, weights, this->columns.size() * sizeof(double));
 }
 
-double* OdeResultSet::getRowData(int index) {
-	if (index >= numRowsUsed) {
+double* OdeResultSet::getRowData(const int index) {
+	if (index >= this->numRowsUsed) {
 		throw VCell::Exception("OdeResultSet::getRowData(int index), row index is out of bounds");
 	}
-	return rowData + index * numDataColumns;
+	return this->rowData + index * this->numDataColumns;
 }
 
 void OdeResultSet::clearData() {
-	numRowsUsed = 0;
-	memset(rowData, 0, numRowsAllocated * numDataColumns * sizeof(double));
+	this->numRowsUsed = 0;
+	memset(this->rowData, 0, this->numRowsAllocated * this->numDataColumns * sizeof(double));
 }
 
-int OdeResultSet::findColumn(const string& aColumn) {
+int OdeResultSet::findColumn(const std::string& aColumn) const {
 	int columnIndex = 0;
-	for (vector<Column>::iterator iter = columns.begin(); iter < columns.end(); iter++) {
-		if ((*iter).name == aColumn) {
-			break;
-		}
-		columnIndex ++;
-	}	
-	if (columnIndex == columns.size()) {
-		columnIndex = -1;
+	for (const Column& column : this->columns) {
+		if (column.name == aColumn) break;
+		columnIndex++;
 	}
+	if (columnIndex == this->columns.size()) columnIndex = -1;
 	return columnIndex;
 }
 
 double OdeResultSet::getColumnWeight(int index) {
-	if (index >= (int)columns.size()) {
-		throw "OdeResultSet::getColumnWeight(int index), column index is out of bounds";
+	if (index >= (int)this->columns.size()) {
+		throw std::out_of_range("OdeResultSet::getColumnWeight(int index), column index is out of bounds");
 	}
 	return columnWeights[index];
 }
 
-int OdeResultSet::getNumColumns() {
-	return (int)columns.size();
+int OdeResultSet::getNumColumns() const {
+	return static_cast<int>(this->columns.size());
 }
 
-string& OdeResultSet::getColumnName(int index) {
-	if (index >= (int)columns.size()) {
-		throw "OdeResultSet::getColumnName(int index), column index is out of bounds";
+std::string& OdeResultSet::getColumnName(const int index) {
+	if (index >= static_cast<int>(this->columns.size())) {
+		throw std::out_of_range("OdeResultSet::getColumnName(int index), column index is out of bounds");
 	}
-	return columns[index].name;
+	return this->columns[index].name;
 }
 
-int OdeResultSet::getNumRows() {
-	return numRowsUsed;
+int OdeResultSet::getNumRows() const {
+	return this->numRowsUsed;
 }
 
-VCell::Expression* OdeResultSet::getColumnFunctionExpression(int columnIndex) {
-	if (columnIndex >= (int)columns.size()) {
-		throw "OdeResultSet::getColumnFunctionExpression(), column index is out of bounds";
+VCell::Expression* OdeResultSet::getColumnFunctionExpression(const int columnIndex) const {
+	if (columnIndex >= static_cast<int>(this->columns.size())) {
+		throw std::out_of_range("OdeResultSet::getColumnFunctionExpression(), column index is out of bounds");
 	}
-	return columns[columnIndex].expression;
+	return this->columns[columnIndex].expression;
 }
 
-void OdeResultSet::getColumnData(int columnIndex, int numParams, double* paramValues, double* colData) {
-	int numCols = getNumColumns();
-	if (columnIndex < 0 || columnIndex >= numCols){
-		throw "OdeResultSet::getColumnData(int columnIndex), columnIndex out of bounds";
+void OdeResultSet::getColumnData(const int index, const int numParams, const double* paramValues, double* colData) const {
+	if (index < 0 || index >= this->getNumColumns()){
+		throw std::out_of_range("OdeResultSet::getColumnData(int columnIndex), columnIndex out of bounds");
 	}
-	if (columns[columnIndex].expression == 0) {
-		for (int i = 0; i < numRowsUsed; i++){
-			colData[i] = rowData[i * numDataColumns + columnIndex];
+	if (this->columns[index].expression == nullptr) {
+		for (int i = 0; i < this->numRowsUsed; i++){
+			colData[i] = this->rowData[i * this->numDataColumns + index];
 		}
 	} else { // Function
-		double* values = new double[numDataColumns + numParams];
-		memcpy(values + numDataColumns, paramValues, numParams * sizeof(double));
-		for (int i = 0; i < numRowsUsed; i++){
-			memcpy(values, rowData + i * numDataColumns, numDataColumns * sizeof(double));
-			colData[i] = columns[columnIndex].expression->evaluateVector(values);		
+		auto* values = new double[this->numDataColumns + numParams];
+		memcpy(values + this->numDataColumns, paramValues, numParams * sizeof(double));
+		for (int i = 0; i < this->numRowsUsed; i++){
+			memcpy(values, this->rowData + i * this->numDataColumns, this->numDataColumns * sizeof(double));
+			colData[i] = this->columns[index].expression->evaluateVector(values);
 		}
 		delete[] values;
 	}
 }
 
-void OdeResultSet::copyInto(OdeResultSet* otherOdeResultSet) {
+void OdeResultSet::copyInto(OdeResultSet* otherOdeResultSet) const {
 	// columns
-	if (otherOdeResultSet->columns.size() != columns.size()) {
-		for (int i = 0; i < (int)otherOdeResultSet->columns.size(); i ++) {
-			delete otherOdeResultSet->columns[i].expression;
+	if (otherOdeResultSet->columns.size() != this->columns.size()) {
+		for (const Column& column : otherOdeResultSet->columns) {
+			delete column.expression;
 		}
 		otherOdeResultSet->columns.clear();
-		for (int i = 0; i < (int)columns.size(); i ++) {
-			if (columns[i].expression == 0) {
-				otherOdeResultSet->addColumn(columns[i].name);
+		for (const Column& column : this->columns) {
+			if (nullptr == column.expression) {
+				otherOdeResultSet->addColumn(column.name);
 			} else {
-				otherOdeResultSet->addFunctionColumn(columns[i].name, columns[i].expression->infix());
+				otherOdeResultSet->addFunctionColumn(column.name, column.expression->infix());
 			}
 		}
-		if (columnWeights != 0) {
-			otherOdeResultSet->setColumnWeights(columnWeights);
+		if (nullptr != this->columnWeights) {
+			otherOdeResultSet->setColumnWeights(this->columnWeights);
 		}
 	}
 	// rows
-	if (otherOdeResultSet->numRowsAllocated != numRowsAllocated) {
+	if (otherOdeResultSet->numRowsAllocated != this->numRowsAllocated) {
 		delete[] otherOdeResultSet->rowData;
-		otherOdeResultSet->rowData = new double[numRowsAllocated * numDataColumns];
-		otherOdeResultSet->numRowsAllocated = numRowsAllocated;
+		otherOdeResultSet->rowData = new double[this->numRowsAllocated * this->numDataColumns];
+		otherOdeResultSet->numRowsAllocated = this->numRowsAllocated;
 	}
-	otherOdeResultSet->numRowsUsed = numRowsUsed;
-	memcpy(otherOdeResultSet->rowData, rowData, numRowsAllocated * numDataColumns * sizeof(double));
+	otherOdeResultSet->numRowsUsed = this->numRowsUsed;
+	memcpy(otherOdeResultSet->rowData, this->rowData, this->numRowsAllocated * this->numDataColumns * sizeof(double));
 }
 
 void OdeResultSet::addEmptyRows(int numRowsToAdd) {
-	if (numRowsAllocated < numRowsUsed + numRowsToAdd) {
-		int oldNumRowsAllocated = numRowsAllocated;
-		double* oldRowData = rowData;
-		numRowsAllocated = numRowsUsed + numRowsToAdd;		
-		rowData = new double[numRowsAllocated * numDataColumns];
-		memset(rowData, 0, numRowsAllocated * numDataColumns * sizeof(double));
-		memcpy(rowData, oldRowData, oldNumRowsAllocated *  numDataColumns * sizeof(double));
+	if (this->numRowsAllocated < this->numRowsUsed + numRowsToAdd) {
+		int oldNumRowsAllocated = this->numRowsAllocated;
+		double* oldRowData = this->rowData;
+		this->numRowsAllocated = this->numRowsUsed + numRowsToAdd;
+		this->rowData = new double[this->numRowsAllocated * this->numDataColumns];
+		memset(this->rowData, 0, this->numRowsAllocated * this->numDataColumns * sizeof(double));
+		memcpy(this->rowData, oldRowData, oldNumRowsAllocated *  this->numDataColumns * sizeof(double));
 		delete[] oldRowData;
 	} 
-	numRowsUsed += numRowsToAdd;
+	this->numRowsUsed += numRowsToAdd;
 }

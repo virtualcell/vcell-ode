@@ -7,11 +7,11 @@
 
 bool SimpleCharStream::staticFlag = false;
 
-SimpleCharStream::SimpleCharStream(istream* dstream, int startline,  int startcolumn, int buffersize)
+SimpleCharStream::SimpleCharStream(std::istream* dstream, int startline,  int startcolumn, int buffersize)
 {
 	init(dstream, startline, startcolumn, buffersize);
 }
-void SimpleCharStream::init(istream* dstream, int startline,  int startcolumn, int buffersize) {		
+void SimpleCharStream::init(std::istream* dstream, int startline,  int startcolumn, int buffersize) {
 	tokenBegin = 0;
 	bufpos = -1;
 	prevCharIsCR = false;
@@ -34,12 +34,12 @@ void SimpleCharStream::init(istream* dstream, int startline,  int startcolumn, i
 	memset(bufcolumn, 0, buffersize * sizeof(int));
 }
 
-SimpleCharStream::SimpleCharStream(istream* dstream, int startline,  int startcolumn)
+SimpleCharStream::SimpleCharStream(std::istream* dstream, int startline,  int startcolumn)
 {
 	init(dstream, startline, startcolumn, 4096);
 }
 
-SimpleCharStream::SimpleCharStream(istream* dstream)
+SimpleCharStream::SimpleCharStream(std::istream* dstream)
 {
 	init(dstream, 1, 1, 4096);
 }
@@ -254,12 +254,12 @@ void SimpleCharStream::backup(int amount)
        bufpos += bufsize;
 }
 
-string SimpleCharStream::GetImage(void)
+std::string SimpleCharStream::GetImage(void)
 {
 	if (bufpos >= tokenBegin)
-		return string(buffer, tokenBegin, bufpos - tokenBegin + 1);
+		return std::string(buffer, tokenBegin, bufpos - tokenBegin + 1);
 	else
-		return string(buffer, tokenBegin, bufsize - tokenBegin) + string(buffer, 0, bufpos + 1);
+		return std::string(buffer, tokenBegin, bufsize - tokenBegin) + std::string(buffer, 0, bufpos + 1);
 }
 
 char* SimpleCharStream::GetSuffix(int len)

@@ -9,13 +9,14 @@
 #include <FunctionRangeException.h>
 #include <sys/timeb.h>
 #include <sstream>
-using std::stringstream;
+
 
 #ifdef USE_MESSAGING
 #include <VCELL/SimulationMessaging.h>
 #endif
 
 #include <cassert>
+#include <string>
 #include <ida/ida.h>
 #include <ida/ida_dense.h>
 //#include <ida/ida_spgmr.h>
@@ -158,7 +159,7 @@ void VCellIDASolver::throwIDAErrorMessage(int returnCode) {
 			throw "IDA_CONSTR_FAIL: The inequality constraints were violated, and the solver was unable to recover.";
 		}
 		case IDA_REP_RES_ERR:{
-			stringstream ss;
+			std::stringstream ss;
 			ss << "IDA_REP_RES_ERR: The user's residual function repeatedly returned a recoverable error flag, but the solver was unable to recover. " << recoverableErrMsg;
 			throw ss.str();
 		}
@@ -172,7 +173,7 @@ void VCellIDASolver::throwIDAErrorMessage(int returnCode) {
 			throw "IDA_BAD_EWT: Some component of the error weight vector is zero (illegal).";
 		}
 		case IDA_FIRST_RES_FAIL:{
-			stringstream ss;
+			std::stringstream ss;
 			ss << "IDA_FIRST_RES_FAIL: The user's residual function returned a recoverable error flag on the first call, but IDA was unable to recover. " << recoverableErrMsg;
 			throw ss.str();
 		}
@@ -294,8 +295,8 @@ Input format:
 
 void VCellIDASolver::readEquations(std::istream& inputstream) {
 	try {
-		string token;
-		string exp;
+		std::string token;
+		std::string exp;
 
 		//
 		// test whether it is a "VAR" block (i.e. whether VAR)
@@ -317,7 +318,7 @@ void VCellIDASolver::readEquations(std::istream& inputstream) {
 			try {
 				initialConditionExpressions[i] = readExpression(inputstream);
 			} catch (VCell::Exception& ex) {
-				throw VCell::Exception(string("Initial condition expression for [") + variableNames[i] + "] " + ex.getMessage());
+				throw VCell::Exception(std::string("Initial condition expression for [") + variableNames[i] + "] " + ex.getMessage());
 			}
 		}
 
@@ -373,15 +374,15 @@ void VCellIDASolver::readEquations(std::istream& inputstream) {
 			try {
 				rhsExpressions[i] = readExpression(inputstream);
 			} catch (VCell::Exception& ex) {
-				stringstream ss;
+				std::stringstream ss;
 				ss << "RHS[" << i << "] " << ex.getMessage();
 				throw VCell::Exception(ss.str());
 			}
 		}
 	} catch (const char* ex) {
-		throw VCell::Exception(string("VCellIDASolver::readInput() : ") + ex);		
+		throw VCell::Exception(std::string("VCellIDASolver::readInput() : ") + ex);
 	} catch (VCell::Exception& ex) {		
-		throw VCell::Exception(string("VCellIDASolver::readInput() : ") + ex.getMessage());
+		throw VCell::Exception(std::string("VCellIDASolver::readInput() : ") + ex.getMessage());
 	} catch (...) {
 		throw VCell::Exception("VCellIDASolver::readInput() caught unknown exception");
 	}

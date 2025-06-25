@@ -8,9 +8,9 @@ class ASTFuncNode : public Node
 public:
 	ASTFuncNode(int i);
 	~ASTFuncNode();
-	void setFunctionFromParserToken(string parserToken);
-	string infixString(int lang, NameScope* nameScope);
-	void getStackElements(vector<StackElement>& elements);
+	void setFunctionFromParserToken(std::string parserToken);
+	std::string infixString(int lang, NameScope* nameScope);
+	void getStackElements(std::vector<StackElement>& elements);
 	double evaluate(int evalType, double* values=0); 
 
 	Node* copyTree();
@@ -18,7 +18,7 @@ public:
 
 private:
 	int funcType;
-	string funcName;
+	std::string funcName;
 
 	ASTFuncNode();
 };

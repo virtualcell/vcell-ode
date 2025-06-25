@@ -10,8 +10,8 @@ public:
 	ASTFloatNode(int i);
 	~ASTFloatNode();
 	double value;
-	string infixString(int lang, NameScope* nameScope);
-	void getStackElements(vector<StackElement>& elements);
+	std::string infixString(int lang, NameScope* nameScope);
+	void getStackElements(std::vector<StackElement>& elements);
 	double evaluate(int evalType, double* values=0); 
 
 	Node* copyTree();

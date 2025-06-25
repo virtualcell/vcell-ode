@@ -1,4 +1,4 @@
-#include <stdio.h>
+#include <cstdio>
 
 #include "ASTIdNode.h"
 #include "ExpressionException.h"
@@ -23,9 +23,9 @@ ASTIdNode::ASTIdNode(int i) : Node(i), symbolTableEntry(NULL)
 ASTIdNode::~ASTIdNode() {
 }
 
-string ASTIdNode::infixString(int lang, NameScope* nameScope)
+std::string ASTIdNode::infixString(int lang, NameScope* nameScope)
 {
-	string idName(name);
+	std::string idName(name);
 	return idName;
 
     if (nameScope == NULL) {
@@ -48,12 +48,12 @@ string ASTIdNode::infixString(int lang, NameScope* nameScope)
 	*/
 		char chrs[20];
 		sprintf(chrs, "%d\0", lang);
-		throw RuntimeException(string("Lanaguage '") + chrs + " not supported");
+		throw RuntimeException(std::string("Lanaguage '") + chrs + " not supported");
 	
 	}	
 }
 
-void ASTIdNode::getStackElements(vector<StackElement>& elements) {
+void ASTIdNode::getStackElements(std::vector<StackElement>& elements) {
 	if (symbolTableEntry == NULL){
 		throw ExpressionException("tryin to evaluate unbound identifier '" + infixString(LANGUAGE_DEFAULT, 0)+"'");
 	}	
@@ -90,7 +90,7 @@ double ASTIdNode::evaluate(int evalType, double* values) {
 	}
 }
 
-SymbolTableEntry* ASTIdNode::getBinding(string symbol)
+SymbolTableEntry* ASTIdNode::getBinding(std::string symbol)
 {
 	if (name == symbol){
 		return symbolTableEntry;
@@ -109,13 +109,13 @@ void ASTIdNode::bind(SymbolTable* symbolTable)
 	symbolTableEntry = symbolTable->getEntry(name);
 
 	if (symbolTableEntry == NULL){
-		string id = name;
+		std::string id = name;
 		throw ExpressionBindingException("error binding identifier '" + id + "'");
 	}
 }
 
-void ASTIdNode::getSymbols(vector<string>& symbols, int language, NameScope* nameScope) {
-	string infix = infixString(language, nameScope);
+void ASTIdNode::getSymbols(std::vector<std::string>& symbols, int language, NameScope* nameScope) {
+	std::string infix = infixString(language, nameScope);
 	for (int i = 0; i < (int)symbols.size(); i ++) {
 		if (symbols[i] == infix) {
 			return;

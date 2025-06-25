@@ -1,6 +1,6 @@
 #include "SimpleSymbolTable.h"
 
-SimpleSymbolTable::SimpleSymbolTable(string* symbols, int symbolCount, ValueProxy** valueProxies)
+SimpleSymbolTable::SimpleSymbolTable(std::string* symbols, int symbolCount, ValueProxy** valueProxies)
 {
 	for (int i = 0; i < symbolCount; i ++){
 		steArray.push_back(new SimpleSymbolTableEntry(symbols[i],i,0, valueProxies == 0 ? 0 : valueProxies[i]));
@@ -16,7 +16,7 @@ SimpleSymbolTable::~SimpleSymbolTable(void)
 }
 
 
-SymbolTableEntry* SimpleSymbolTable::getLocalEntry(const string & identifier) const
+SymbolTableEntry* SimpleSymbolTable::getLocalEntry(const std::string & identifier) const
 {
 	for (unsigned int i = 0; i < steArray.size(); i++){
 		if (steArray[i]->getName() == identifier){

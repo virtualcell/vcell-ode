@@ -8,8 +8,8 @@ class ASTOrNode : public Node
 public:
 	ASTOrNode(int i);
 	~ASTOrNode();
-	string infixString(int lang, NameScope* nameScope);
-	void getStackElements(vector<StackElement>& elements);
+	std::string infixString(int lang, NameScope* nameScope);
+	void getStackElements(std::vector<StackElement>& elements);
 	double evaluate(int evalType, double* values=0); 
 	bool isBoolean();
 
