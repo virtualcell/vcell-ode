@@ -2,7 +2,6 @@
 #define EXPRESSIONPARSER_H
 
 #include <vector>
-using std::vector;
 
 #include "Token.h"
 #include "ASTExpression.h"
@@ -31,7 +30,7 @@ protected:
 
 public:
 	ExpressionParser(ExpressionParserTokenManager* tm);
-	ExpressionParser(istream* stream);
+	ExpressionParser(std::istream* stream);
 	~ExpressionParser();
 	ASTExpression* Expression(void);
 
@@ -70,8 +69,8 @@ private:
 
 	LookaheadSuccess jj_ls;
 
-	vector< vector<int>* > jj_expentries;
-	vector<int> *jj_expentry;
+	std::vector<std::vector<int>*> jj_expentries;
+	std::vector<int> *jj_expentry;
 	int jj_kind;
 	int* jj_lasttokens;
 	int jj_endpos;	

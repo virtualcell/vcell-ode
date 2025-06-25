@@ -2,7 +2,6 @@
 #define TOKEN_H
 
 #include <string>
-using std::string;
 
 class Token
 {
@@ -12,7 +11,7 @@ public:
 
 	int kind;
 	int beginLine, beginColumn, endLine, endColumn;
-	string image;
+	std::string image;
 
 	Token* next;
 	Token* specialToken;

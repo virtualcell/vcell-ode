@@ -16,9 +16,9 @@ bool ASTOrNode::isBoolean() {
 	return true;
 }
 
-string ASTOrNode::infixString(int lang, NameScope* nameScope)
+std::string ASTOrNode::infixString(int lang, NameScope* nameScope)
 {
-	string buffer;
+	std::string buffer;
 
 	if(lang == LANGUAGE_VISIT){
 		  for (int i=0;i<jjtGetNumChildren()-1;i++){
@@ -44,7 +44,7 @@ string ASTOrNode::infixString(int lang, NameScope* nameScope)
 }
 
 
-void ASTOrNode::getStackElements(vector<StackElement>& elements) {
+void ASTOrNode::getStackElements(std::vector<StackElement>& elements) {
 	for (int i=0;i<jjtGetNumChildren();i++){
 		jjtGetChild(i)->getStackElements(elements);;
 		if (i>0) 

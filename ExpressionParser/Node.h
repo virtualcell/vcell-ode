@@ -2,8 +2,6 @@
 #define SIMPLENODE_H
 #include <string>
 #include <vector>
-using std::string;
-using std::vector;
 
 #define LANGUAGE_DEFAULT  0
 #define LANGUAGE_C 1
@@ -30,7 +28,7 @@ public:
 	Node(int unused);
 	virtual ~Node(void);
 	virtual Node* copyTree()=0;
-	virtual void getStackElements(vector<StackElement>& elements)=0;
+	virtual void getStackElements(std::vector<StackElement>& elements)=0;
 	virtual double evaluate(int type, double* values=0)=0;	
 
 	void jjtOpen();
@@ -46,14 +44,14 @@ public:
 	Node* abandonChild(int i);
 	Node* jjtGetChild(int i);
 	int jjtGetNumChildren();
-	void dump(string prefix);
-	virtual string infixString(int lang, NameScope* nameScope)=0;
-	string toString(string prefix);
-	virtual void getSymbols(vector<string>& symbols, int language, NameScope* nameScope);
-	virtual SymbolTableEntry* getBinding(string symbol);
+	void dump(std::string prefix);
+	virtual std::string infixString(int lang, NameScope* nameScope)=0;
+	std::string toString(std::string prefix);
+	virtual void getSymbols(std::vector<std::string>& symbols, int language, NameScope* nameScope);
+	virtual SymbolTableEntry* getBinding(std::string symbol);
 	virtual void bind(SymbolTable* symbolTable);
-	static string getFunctionDomainError(string problem, double* values, string argumentName1, Node* node1, string argumentName2="", Node* node2=0);
-	static string getNodeSummary(double* values, Node* node);
+	static std::string getFunctionDomainError(std::string problem, double* values, std::string argumentName1, Node* node1, std::string argumentName2="", Node* node2=0);
+	static std::string getNodeSummary(double* values, Node* node);
 	virtual bool isBoolean();
 
 	void jjtAddChild(Node* n);

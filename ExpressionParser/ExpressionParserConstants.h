@@ -1,6 +1,8 @@
 #ifndef EXPRESSIONPARSERCONSTANTS_H
 #define EXPRESSIONPARSERCONSTANTS_H
 
+#include <string>
+
 const int EEOF = 0;
 const int RELATIONAL_OPERATOR = 5;
 const int LT = 6;
@@ -27,7 +29,7 @@ const int DIGIT = 26;
 
 const int DEFAULT = 0;
 
-const string tokenImage[] = {
+const std::string tokenImage[] = {
     "<EOF>",
     "\" \"",
     "\"\\t\"",

@@ -5,8 +5,8 @@
 
 #include "Node.h"
 #include "StackMachine.h"
-#include <math.h>
-#include <stdio.h>
+#include <cmath>
+#include <cstdio>
 #include "MathUtil.h"
 #include "DivideByZeroException.h"
 #include "FunctionDomainException.h"
@@ -15,10 +15,6 @@
 #include "ValueProxy.h"
 #include <iostream>
 #include <algorithm>
-using std::cout;
-using std::endl;
-using std::max;
-using std::min;
 
 StackMachine::StackMachine(StackElement* arg_elements, int size) {
 	elements = arg_elements;
@@ -46,13 +42,13 @@ void StackMachine::showInstructions(){
 	StackElement *token = elements;
 	for (int i=0; i<elementSize; i++, token++){
 		if (token->type==TYPE_BZ){
-			cout << "BZ  " << token->branchOffset << endl;
+			std::cout << "BZ  " << token->branchOffset << std::endl;
 		}else if (token->type==TYPE_IDENTIFIER){
-			cout << "PUSH " << "var[" << token->vectorIndex << "]" << endl;
+			std::cout << "PUSH " << "var[" << token->vectorIndex << "]" << std::endl;
 		}else if (token->type==TYPE_FLOAT){
-			cout << "PUSH " << token->value << endl;
+			std::cout << "PUSH " << token->value << std::endl;
 		}else{
-			cout << opCodes[token->type] << "()" << endl;
+			std::cout << opCodes[token->type] << "()" << std::endl;
 		}
 	}
 }
@@ -155,7 +151,7 @@ double StackMachine::evaluate(double* values){
 				if (*tos < 0) {
 					char problem[1000];
 					sprintf(problem, "sqrt(u) where u=%lf<0 is undefined", *tos);					
-					throw FunctionDomainException(string(problem));
+					throw FunctionDomainException(std::string(problem));
 				}
 				*tos = sqrt(*tos);				
 				break;
@@ -167,11 +163,11 @@ double StackMachine::evaluate(double* values){
 				if (*tos < 0.0 && (MathUtil::round(arg2) != arg2)) {
 					char problem[1000];
 					sprintf(problem, "pow(u,v) and u=%lf<0 and v=%lf not an integer", *tos, arg2);					
-					throw FunctionDomainException(string(problem));
+					throw FunctionDomainException(std::string(problem));
 				} else if (*tos == 0.0 && arg2 < 0) {
 					char problem[100];
 					sprintf(problem, "pow(u,v) and u=0 and v=%lf<0 divide by zero", arg2);
-					throw FunctionDomainException(string(problem));
+					throw FunctionDomainException(std::string(problem));
 				} 
 				if (arg2 == 0.0) {
 					*tos = 1.0;
@@ -182,7 +178,7 @@ double StackMachine::evaluate(double* values){
 					if (MathUtil::double_infinity == -result || MathUtil::double_infinity == result || result != result) {
 						char problem[1000];
 						sprintf(problem, "u^v evaluated to %lf, u=%lf, v=%lf", result, *tos, arg2);
-						throw FunctionDomainException(string(problem));
+						throw FunctionDomainException(std::string(problem));
 					}
 					*tos = result;
 				}
@@ -193,7 +189,7 @@ double StackMachine::evaluate(double* values){
 				} else if (*tos < 0.0) {
 					char problem[1000];					
 					sprintf(problem, "log(u) and u=%lf < 0.0 is undefined", *tos);					
-					throw FunctionDomainException(string(problem));
+					throw FunctionDomainException(std::string(problem));
 				} 
                 *tos = log(*tos);				
 				break;
@@ -210,7 +206,7 @@ double StackMachine::evaluate(double* values){
 				if (fabs(*tos) > 1.0) {
 					char problem[1000];
 					sprintf(problem, "asin(u) and u=%lf and |u|>1.0 undefined", *tos);
-					throw FunctionDomainException(string(problem));
+					throw FunctionDomainException(std::string(problem));
 				}
                 *tos = asin(*tos);				
 				break;
@@ -218,7 +214,7 @@ double StackMachine::evaluate(double* values){
 				if (fabs(*tos) > 1.0) {
 					char problem[1000];
 					sprintf(problem, "acos(u) and u=%lf and |u|>1.0 undefined", *tos);
-					throw FunctionDomainException(string(problem));
+					throw FunctionDomainException(std::string(problem));
 				}
 				*tos = acos(*tos);			
 				break;
@@ -231,11 +227,11 @@ double StackMachine::evaluate(double* values){
 				break; 
 			case TYPE_MAX: // 29, pop 2 push 1	
 				arg2 = *(tos--);
-				*tos = max<double>(*tos, arg2);
+				*tos = std::max<double>(*tos, arg2);
 				break;
 			case TYPE_MIN: // 30, pop 2 push 1	
 				arg2 = *(tos--);
-				*tos = min<double>(*tos, arg2);
+				*tos = std::min<double>(*tos, arg2);
 				break;
 			case TYPE_CEIL: // 31, pop 1 push 1	
 				*tos = ceil(*tos);
@@ -249,7 +245,7 @@ double StackMachine::evaluate(double* values){
 				if (result == 0) {
 					char problem[1000];
 					sprintf(problem, "csc(u)=1/sin(u) and sin(u)=0 and u=%lf", *tos);
-					throw FunctionDomainException(string(problem));
+					throw FunctionDomainException(std::string(problem));
 				}
 				*tos = 1/result;				
 			}
@@ -260,7 +256,7 @@ double StackMachine::evaluate(double* values){
 				if (result == 0) {
 					char problem[1000];
 					sprintf(problem, "cot(u)=1/tan(u) and tan(u)=0 and u=%lf", *tos);
-					throw FunctionDomainException(string(problem));
+					throw FunctionDomainException(std::string(problem));
 				}
 				*tos = 1/result;				
 			}
@@ -271,7 +267,7 @@ double StackMachine::evaluate(double* values){
 				if (result == 0) {
 					char problem[1000];
 					sprintf(problem, "sec(u)=1/cos(u) and cos(u)=0 and u=%lf", *tos);
-					throw FunctionDomainException(string(problem));
+					throw FunctionDomainException(std::string(problem));
 				}
 				*tos = 1/result;				
 			}
@@ -280,7 +276,7 @@ double StackMachine::evaluate(double* values){
 				if (fabs(*tos) < 1.0){
 					char problem[1000];
 					sprintf(problem, "acsc(u) and -1<u=%lf<1 undefined", *tos);
-					throw FunctionDomainException(string(problem));
+					throw FunctionDomainException(std::string(problem));
 				}
 				*tos = MathUtil::acsc(*tos);
 				break;
@@ -296,7 +292,7 @@ double StackMachine::evaluate(double* values){
 				if (fabs(*tos) < 1.0){
 					char problem[1000];
 					sprintf(problem, "asec(u) and -1<u=%lf<1 undefined", *tos);
-					throw FunctionDomainException(string(problem));
+					throw FunctionDomainException(std::string(problem));
 				}
 				*tos = MathUtil::asec(*tos);
 				break;
@@ -331,7 +327,7 @@ double StackMachine::evaluate(double* values){
 				if (*tos < 1.0){
 					char problem[1000];
 					sprintf(problem, "acosh(u) and u=%lf<1.0", *tos);
-					throw FunctionDomainException(string(problem));
+					throw FunctionDomainException(std::string(problem));
 				}
 				*tos = MathUtil::acosh(*tos);
 				break;
@@ -339,7 +335,7 @@ double StackMachine::evaluate(double* values){
 				if (fabs(*tos) >= 1.0){
 					char problem[1000];
 					sprintf(problem, "atanh(u) and |u| >= 1.0, u=%lf", *tos);
-					throw FunctionDomainException(string(problem));
+					throw FunctionDomainException(std::string(problem));
 				}
 				*tos = MathUtil::atanh(*tos);
 				break;
@@ -353,7 +349,7 @@ double StackMachine::evaluate(double* values){
 				if (fabs(*tos) <= 1.0){
 					char problem[1000];
 					sprintf(problem, "acoth(u) and |u| <= 1.0, u=%lf", *tos);
-					throw FunctionDomainException(string(problem));
+					throw FunctionDomainException(std::string(problem));
 				}
 				*tos = MathUtil::acoth(*tos);
 				break;
@@ -361,7 +357,7 @@ double StackMachine::evaluate(double* values){
 				if (*tos <= 0.0 || *tos > 1.0){
 					char problem[1000];
 					sprintf(problem, "asech(u) and u <= 0.0 or u > 1.0, u=%lf", *tos);
-					throw FunctionDomainException(string(problem));
+					throw FunctionDomainException(std::string(problem));
 				}
 				*tos = MathUtil::asech(*tos);
 				break;
@@ -369,7 +365,7 @@ double StackMachine::evaluate(double* values){
 				if (*tos < 0.0 || (*tos-(int)*tos) != 0){
 					char problem[1000];
 					sprintf(problem, "factorial(u) and u=%lf < 0.0 or is not an integer", *tos);
-					throw FunctionDomainException(string(problem));
+					throw FunctionDomainException(std::string(problem));
 				}
 				*tos = MathUtil::factorial(*tos);
 				break;

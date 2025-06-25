@@ -16,10 +16,10 @@ bool ASTAndNode::isBoolean() {
 	return true;
 }
 
-string ASTAndNode::infixString(int lang, NameScope* nameScope)
+std::string ASTAndNode::infixString(int lang, NameScope* nameScope)
 {
 
-	string buffer;
+	std::string buffer;
 	if(lang == LANGUAGE_VISIT){
 	  for (int i=0;i<jjtGetNumChildren()-1;i++){
 		  buffer += "and(";
@@ -43,7 +43,7 @@ string ASTAndNode::infixString(int lang, NameScope* nameScope)
 	return buffer;
 }
 
-void ASTAndNode::getStackElements(vector<StackElement>& elements) {
+void ASTAndNode::getStackElements(std::vector<StackElement>& elements) {
 	for (int i=0;i<jjtGetNumChildren();i++){
 		jjtGetChild(i)->getStackElements(elements);;
 		if (i>0) 

@@ -17,9 +17,9 @@ bool ASTNotNode::isBoolean() {
 	return true;
 }
 
-string ASTNotNode::infixString(int lang, NameScope* nameScope)
+std::string ASTNotNode::infixString(int lang, NameScope* nameScope)
 {
-	string buffer;
+	std::string buffer;
 	if (lang == LANGUAGE_VISIT){
 		buffer.append("not(");
 	}else{
@@ -31,7 +31,7 @@ string ASTNotNode::infixString(int lang, NameScope* nameScope)
 	return buffer;
 }
 
-void ASTNotNode::getStackElements(vector<StackElement>& elements) {
+void ASTNotNode::getStackElements(std::vector<StackElement>& elements) {
 	jjtGetChild(0)->getStackElements(elements);
 	elements.push_back(StackElement(TYPE_NOT));
 }

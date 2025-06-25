@@ -2,10 +2,10 @@
 
 #include <math.h>
 #include <algorithm>
-using std::min;
-using std::max;
+
 
 #include "ASTFuncNode.h"
+#include <format>
 #include "RuntimeException.h"
 #include "ExpressionException.h"
 #include "MathUtil.h"
@@ -59,7 +59,7 @@ int StackMachine_LookupTable[] = {TYPE_EXP, TYPE_SQRT, TYPE_ABS, TYPE_POW,
 	TYPE_ACOTH, TYPE_ASECH, TYPE_FACTORIAL, TYPE_J1
 };
 
-const string functionNamesVCML[] = {
+const std::string functionNamesVCML[] = {
 	"exp",		// 0
 	"sqrt",		// 1
 	"abs",		// 2
@@ -112,10 +112,10 @@ ASTFuncNode::ASTFuncNode(int i) : Node(i) {
 ASTFuncNode::~ASTFuncNode() {
 }
 
-void ASTFuncNode::setFunctionFromParserToken(string parserToken)
+void ASTFuncNode::setFunctionFromParserToken(std::string parserToken)
 {
 	for (int i = 0; i < parserNumFunctions; i++){
-		string definedToken = functionNamesVCML[i];		
+		std::string definedToken = functionNamesVCML[i];
 		if (definedToken == parserToken){
 			funcType = i;
 			funcName = parserToken;
@@ -125,9 +125,8 @@ void ASTFuncNode::setFunctionFromParserToken(string parserToken)
 	throw RuntimeException("unsupported function '" + parserToken + "'");
 }
 
-string ASTFuncNode::infixString(int lang, NameScope* nameScope)
-{
-	string buffer;
+std::string ASTFuncNode::infixString(int lang, NameScope* nameScope){
+	std::string buffer;
 
 	switch (funcType) {
 		case POW :
@@ -167,7 +166,7 @@ string ASTFuncNode::infixString(int lang, NameScope* nameScope)
 	return buffer;
 }
 
-void ASTFuncNode::getStackElements(vector<StackElement>& elements) {
+void ASTFuncNode::getStackElements(std::vector<StackElement>& elements) {
 	for (int i = 0; i < jjtGetNumChildren(); i++) {
 		jjtGetChild(i)->getStackElements(elements);
 	}
@@ -196,53 +195,47 @@ double ASTFuncNode::evaluate(int evalType, double* values)
 				Node* mantissaChild = child0;
 				double exponent = 0.0;
 				double mantissa = 0.0;
-				ExpressionException* exponentException = 0;
-				ExpressionException* mantissaException = 0;
+				ExpressionException* exponentException = nullptr;
+				ExpressionException* mantissaException = nullptr;
 				try {
 					exponent = exponentChild->evaluate(evalType, values);
 				} catch (ExpressionException& e) {
 					if (evalType == EVALUATE_VECTOR) 
-						throw e;
+						throw;
 					exponentException = new ExpressionException(e.getMessage());
 				}
 				try {
 					mantissa = mantissaChild->evaluate(evalType, values);
 				} catch (ExpressionException& e) {
 					if (evalType == EVALUATE_VECTOR) 
-						throw e;
+						throw;
 					mantissaException = new ExpressionException(e.getMessage());
 				}
 
-				if (exponentException == NULL && mantissaException == NULL) {
+				if (exponentException == nullptr && mantissaException == nullptr) {
 					if (mantissa < 0.0 && (MathUtil::round(exponent) != exponent)) {
-						char problem[100];
-						sprintf(problem, "pow(u,v) and u=%lf<0 and v=%lf not an integer", mantissa, exponent);
-						string errorMsg = getFunctionDomainError(problem, values, "u", mantissaChild, "v",  exponentChild);
+						std::string problem{std::format("pow(u,v) and u={}<0 and v={} not an integer", mantissa, exponent)};
+						std::string errorMsg = getFunctionDomainError(problem, values, "u", mantissaChild, "v",  exponentChild);
 						throw FunctionDomainException(errorMsg);
 					}
 					if (mantissa == 0.0 && exponent < 0) {
-						char problem[100];
-						sprintf(problem, "pow(u,v) and u=0 and v=%lf<0 divide by zero", exponent);
-						string errorMsg = getFunctionDomainError(problem, values, "u", mantissaChild, "v", exponentChild);
+						std::string problem{std::format("pow(u,v) and u=0 and v={}<0 divide by zero", mantissa, exponent)};
+						std::string errorMsg = getFunctionDomainError(problem, values, "u", mantissaChild, "v", exponentChild);
 						throw FunctionDomainException(errorMsg);
 					}
 					result = pow(mantissa, exponent);
 					if (MathUtil::double_infinity == -result || MathUtil::double_infinity == result || result != result) {
-						char problem[1000];
-						sprintf(problem, "u^v evaluated to %lf, u=%lf, v=%lf", result, mantissa, exponent);
-						string errorMsg = getFunctionDomainError(problem, values, "u", mantissaChild, "v", exponentChild);
+						std::string problem = std::format("u^v evaluated to {}, u={}, v={}", result, mantissa, exponent);
+						std::string errorMsg = getFunctionDomainError(problem, values, "u", mantissaChild, "v", exponentChild);
 						throw FunctionDomainException(errorMsg);
 					}
-				} else if (exponentException == 0 && exponent == 0.0) {
+				} else if (exponentException == nullptr && exponent == 0.0) {
 						result = 1.0;
-				} else if (mantissaException == 0 && mantissa == 1.0) {
+				} else if (mantissaException == nullptr && mantissa == 1.0) {
 						result = 1.0;
 				} else {
-					if (mantissaException != NULL) {
-						throw (*mantissaException);
-					} else if (exponentException != NULL) {
-						throw (*exponentException);
-					}
+					if (mantissaException != nullptr) throw *mantissaException;
+					if (exponentException != nullptr) throw *exponentException;
 				}
 				break;
 			}
@@ -252,9 +245,8 @@ double ASTFuncNode::evaluate(int evalType, double* values)
 					throw RuntimeException("log() expects 1 argument");				
 				double argument = child0->evaluate(evalType, values);
 				if (argument <= 0.0) {
-					char problem[1000];					
-					sprintf(problem, "log(u) and u=%lf <= 0.0 is undefined", argument);
-					string errorMsg = getFunctionDomainError(problem, values, "u", child0);
+					std::string problem{std::format("log(u) and u={} <= 0.0 is undefined", argument)};
+					std::string errorMsg = getFunctionDomainError(problem, values, "u", child0);
 					throw FunctionDomainException(errorMsg);
 				}
 				result = log(argument);
@@ -274,9 +266,8 @@ double ASTFuncNode::evaluate(int evalType, double* values)
 					throw RuntimeException("sqrt() expects 1 argument");				
 				double argument = child0->evaluate(evalType, values);
 				if (argument < 0) {
-					char problem[1000];
-					sprintf(problem, "sqrt(u) where u=%lf<0 is undefined", argument);
-					string errorMsg = getFunctionDomainError(problem, values, "u", child0);
+					std::string problem{std::format("sqrt(u) where u={}<0 is undefined", argument)};
+					std::string errorMsg = getFunctionDomainError(problem, values, "u", child0);
 					throw FunctionDomainException(errorMsg);
 				}
 				result = sqrt(argument);
@@ -312,9 +303,8 @@ double ASTFuncNode::evaluate(int evalType, double* values)
 					throw RuntimeException("asin() expects 1 argument");				
 				double argument = child0->evaluate(evalType, values);
 				if (fabs(argument) > 1.0) {
-					char problem[1000];
-					sprintf(problem, "asin(u) and u=%lf and |u|>1.0 undefined", argument);
-					string errorMsg = getFunctionDomainError(problem, values, "u", child0);
+					std::string problem{std::format("asin(u) and u={} and |u|>1.0 undefined", argument)};
+					std::string errorMsg = getFunctionDomainError(problem, values, "u", child0);
 					throw FunctionDomainException(errorMsg);
 				}
 				result = asin(argument);
@@ -326,9 +316,8 @@ double ASTFuncNode::evaluate(int evalType, double* values)
 					throw RuntimeException("acos() expects 1 argument");				
 				double argument = child0->evaluate(evalType, values);
 				if (fabs(argument) > 1.0) {
-					char problem[1000];
-					sprintf(problem, "acos(u) and u=%lf and |u|>1.0 undefined", argument);
-					string errorMsg = getFunctionDomainError(problem, values, "u", child0);
+					std::string problem{std::format("acos(u) and u={} and |u|>1.0 undefined", argument)};
+					std::string errorMsg = getFunctionDomainError(problem, values, "u", child0);
 					throw FunctionDomainException(errorMsg);
 				}
 				result = acos(argument);
@@ -357,7 +346,7 @@ double ASTFuncNode::evaluate(int evalType, double* values)
 					throw RuntimeException("max() expects 2 arguments");
 				double argument0 = child0->evaluate(evalType, values);
 				double argument1 = jjtGetChild(1)->evaluate(evalType, values);
-				result = max<double>(argument0, argument1);
+				result = std::max<double>(argument0, argument1);
 				break;
 			}
 		case MIN :
@@ -366,7 +355,7 @@ double ASTFuncNode::evaluate(int evalType, double* values)
 					throw RuntimeException("min() expects 2 arguments");
 				double argument0 = child0->evaluate(evalType, values);
 				double argument1 = jjtGetChild(1)->evaluate(evalType, values);
-				result = min<double>(argument0, argument1);
+				result = std::min<double>(argument0, argument1);
 				break;
 			}
 		case CEIL :
@@ -392,9 +381,8 @@ double ASTFuncNode::evaluate(int evalType, double* values)
 				double argument = child0->evaluate(evalType, values);
 				result = sin(argument);
 				if (result == 0) {
-					char problem[1000];
-					sprintf(problem, "csc(u)=1/sin(u) and sin(u)=0 and u=%lf", argument);
-					string errorMsg = getFunctionDomainError(problem, values, "u", child0);
+					std::string problem{std::format("csc(u)=1/sin(u) and sin(u)=0 and u={}", argument)};
+					std::string errorMsg = getFunctionDomainError(problem, values, "u", child0);
 					throw FunctionDomainException(errorMsg);
 				}
 				result = 1/result;
@@ -407,9 +395,8 @@ double ASTFuncNode::evaluate(int evalType, double* values)
 				double argument = child0->evaluate(evalType, values);
 				result = tan(argument);
 				if (result == 0) {
-					char problem[1000];
-					sprintf(problem, "cot(u)=1/tan(u) and tan(u)=0 and u=%lf", argument);
-					string errorMsg = getFunctionDomainError(problem, values, "u", child0);
+					std::string problem{std::format("cot(u)=1/tan(u) and tan(u)=0 and u={}", argument)};
+					std::string errorMsg = getFunctionDomainError(problem, values, "u", child0);
 					throw FunctionDomainException(errorMsg);
 				}
 				result = 1/result;
@@ -422,9 +409,8 @@ double ASTFuncNode::evaluate(int evalType, double* values)
 				double argument = child0->evaluate(evalType, values);
 				result = cos(argument);
 				if (result == 0) {
-					char problem[1000];
-					sprintf(problem, "sec(u)=1/cos(u) and cos(u)=0 and u=%lf", argument);
-					string errorMsg = getFunctionDomainError(problem, values, "u", child0);
+					std::string problem{std::format("sec(u)=1/cos(u) and cos(u)=0 and u={}", argument)};
+					std::string errorMsg = getFunctionDomainError(problem, values, "u", child0);
 					throw FunctionDomainException(errorMsg);
 				}
 				result = 1/result;
@@ -436,9 +422,8 @@ double ASTFuncNode::evaluate(int evalType, double* values)
 					throw RuntimeException("acsc() expects 1 argument");
 				double argument = child0->evaluate(evalType, values);
 				if (fabs(argument) < 1.0){
-					char problem[1000];
-					sprintf(problem, "acsc(u) and -1<u=%lf<1 undefined", argument);
-					string errorMsg = getFunctionDomainError(problem, values, "u", child0);
+					std::string problem{std::format("acsc(u) and -1<u={}<1 undefined", argument)};
+					std::string errorMsg = getFunctionDomainError(problem, values, "u", child0);
 					throw FunctionDomainException(errorMsg);
 				}
 				result = MathUtil::acsc(argument);
@@ -450,7 +435,7 @@ double ASTFuncNode::evaluate(int evalType, double* values)
 					throw RuntimeException("acot() expects 1 argument");
 				double argument = child0->evaluate(evalType, values);
 				if (argument == 0) {
-					string errorMsg = getFunctionDomainError("acot(u)=atan(1/u) and u=0", values, "u", child0);
+					std::string errorMsg = getFunctionDomainError("acot(u)=atan(1/u) and u=0", values, "u", child0);
 					throw FunctionDomainException(errorMsg);
 				}
 				result = MathUtil::acot(argument);
@@ -462,9 +447,8 @@ double ASTFuncNode::evaluate(int evalType, double* values)
 					throw RuntimeException("asec() expects 1 argument");
 				double argument = child0->evaluate(evalType, values);
 				if (fabs(argument) < 1.0){
-					char problem[1000];
-					sprintf(problem, "asec(u) and -1<u=%lf<1 undefined", argument);
-					string errorMsg = getFunctionDomainError(problem, values, "u", child0);
+					std::string problem{std::format("asec(u) and -1<u={}<1 undefined", argument)};
+					std::string errorMsg = getFunctionDomainError(problem, values, "u", child0);
 					throw FunctionDomainException(errorMsg);
 				}
 				result = MathUtil::asec(argument);
@@ -500,9 +484,8 @@ double ASTFuncNode::evaluate(int evalType, double* values)
 					throw RuntimeException("csch() expects 1 argument");
 				double argument = child0->evaluate(evalType, values);
 				if (argument == 0.0){
-					char problem[1000];
-					sprintf(problem, "csch(u) and |u| = 0, u=%lf", argument);
-					string errorMsg = getFunctionDomainError(problem, values, "u", child0);
+					std::string problem{std::format("csch(u) and |u| = 0, u={}", argument)};
+					std::string errorMsg = getFunctionDomainError(problem, values, "u", child0);
 					throw FunctionDomainException(errorMsg);
 				}
 				result = MathUtil::csch(argument);
@@ -514,9 +497,8 @@ double ASTFuncNode::evaluate(int evalType, double* values)
 					throw RuntimeException("coth() expects 1 argument");
 				double argument = child0->evaluate(evalType, values);
 				if (argument == 0.0){
-					char problem[1000];
-					sprintf(problem, "coth(u) and |u| = 0, u=%lf", argument);
-					string errorMsg = getFunctionDomainError(problem, values, "u", child0);
+					std::string problem{std::format("coth(u) and |u| = 0, u={}", argument)};
+					std::string errorMsg = getFunctionDomainError(problem, values, "u", child0);
 					throw FunctionDomainException(errorMsg);
 				}
 				result = MathUtil::coth(argument);
@@ -545,9 +527,8 @@ double ASTFuncNode::evaluate(int evalType, double* values)
 					throw RuntimeException("acosh() expects 1 argument");
 				double argument = child0->evaluate(evalType, values);
 				if (argument < 1.0){
-					char problem[1000];
-					sprintf(problem, "acosh(u) and u=%lf<1.0", argument);
-					string errorMsg = getFunctionDomainError(problem, values, "u", child0);
+					std::string problem{std::format("acosh(u) and u={}<1.0", argument)};
+					std::string errorMsg = getFunctionDomainError(problem, values, "u", child0);
 					throw FunctionDomainException(errorMsg);
 				}
 				result = MathUtil::acosh(argument);
@@ -559,9 +540,8 @@ double ASTFuncNode::evaluate(int evalType, double* values)
 					throw RuntimeException("atanh() expects 1 argument");
 				double argument = child0->evaluate(evalType, values);
 				if (fabs(argument) >= 1.0){
-					char problem[1000];
-					sprintf(problem, "atanh(u) and |u| >= 1.0, u=%lf", argument);
-					string errorMsg = getFunctionDomainError(problem, values, "u", child0);
+					std::string problem{std::format("atanh(u) and |u| >= 1.0, u={}", argument)};
+					std::string errorMsg = getFunctionDomainError(problem, values, "u", child0);
 					throw FunctionDomainException(errorMsg);
 				}
 				result = MathUtil::atanh(argument);
@@ -573,7 +553,7 @@ double ASTFuncNode::evaluate(int evalType, double* values)
 					throw RuntimeException("acsch() expects 1 argument");
 				double argument = child0->evaluate(evalType, values);
 				if (argument == 0.0){
-					string errorMsg = getFunctionDomainError("acsch(u) and u=0", values, "u", child0);
+					std::string errorMsg = getFunctionDomainError("acsch(u) and u=0", values, "u", child0);
 					throw FunctionDomainException(errorMsg);
 				}				
 				result = MathUtil::acsch(argument);
@@ -585,9 +565,8 @@ double ASTFuncNode::evaluate(int evalType, double* values)
 					throw RuntimeException("acoth() expects 1 argument");
 				double argument = child0->evaluate(evalType, values);
 				if (fabs(argument) <= 1.0){
-					char problem[1000];
-					sprintf(problem, "acoth(u) and |u| <= 1.0, u=%lf", argument);
-					string errorMsg = getFunctionDomainError(problem, values, "u", child0);
+					std::string problem{std::format("acoth(u) and |u| <= 1.0, u={}", argument)};
+					std::string errorMsg = getFunctionDomainError(problem, values, "u", child0);
 					throw FunctionDomainException(errorMsg);
 				}
 				result = MathUtil::acoth(argument);
@@ -599,9 +578,8 @@ double ASTFuncNode::evaluate(int evalType, double* values)
 					throw RuntimeException("asech() expects 1 argument");				
 				double argument = child0->evaluate(evalType, values);
 				if (argument <= 0.0 || argument > 1.0){
-					char problem[1000];
-					sprintf(problem, "asech(u) and u <= 0.0 or u > 1.0, u=%lf", argument);
-					string errorMsg = getFunctionDomainError(problem, values, "u", child0);
+					std::string problem{std::format("asech(u) and u <= 0.0 or u > 1.0, u={}", argument)};
+					std::string errorMsg = getFunctionDomainError(problem, values, "u", child0);
 					throw FunctionDomainException(errorMsg);
 				}
 				result = MathUtil::asech(argument);
@@ -612,10 +590,9 @@ double ASTFuncNode::evaluate(int evalType, double* values)
 				if (jjtGetNumChildren()!= 1) 
 					throw RuntimeException("factorial() expects 1 argument");
 				double argument = child0->evaluate(evalType, values);
-				if (argument < 0.0 || (argument-(int)argument) != 0){
-					char problem[1000];
-					sprintf(problem, "factorial(u) and u=%lf < 0.0, or u is not an integer", argument);
-					string errorMsg = getFunctionDomainError(problem, values, "u", child0);
+				if (argument < 0.0 || (argument-static_cast<int>(argument)) != 0){
+					std::string problem{std::format("factorial(u) and u={} < 0.0, or u is not an integer", argument)};
+					std::string errorMsg = getFunctionDomainError(problem, values, "u", child0);
 					throw FunctionDomainException(errorMsg);
 				}
 				result = MathUtil::factorial(argument);
@@ -637,8 +614,8 @@ double ASTFuncNode::evaluate(int evalType, double* values)
 	}
 	//result is NAN
 	if (MathUtil::double_infinity == -result || MathUtil::double_infinity == result || result != result) {
-		char problem[1000];
-		sprintf(problem, "%s evaluated to infinity or NaN", infixString(LANGUAGE_DEFAULT,0).c_str(), functionNamesVCML[funcType].c_str());
+		//std::string problem{std::format("{} evaluated to infinity or NaN", infixString(LANGUAGE_DEFAULT,0).c_str(), functionNamesVCML[funcType].c_str())}; // unmatched specifier?
+		std::string problem{std::format("{} evaluated to infinity or NaN", infixString(LANGUAGE_DEFAULT,0).c_str())};
 		throw FunctionRangeException(problem);
 	}
 	return result;

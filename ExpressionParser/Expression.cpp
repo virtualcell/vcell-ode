@@ -3,9 +3,7 @@
 #include <stdio.h>
 #include <iostream>
 #include <sstream>
-using std::cout;
-using std::endl;
-using std::istringstream;
+
 
 #include "Expression.h"
 #include "ExpressionParser.h"
@@ -38,7 +36,7 @@ Expression::Expression(const Expression &rhs)
 * create and bind in single ctor
 * equivalent to default constructor if #expString is empty
 */
-Expression::Expression(string expString, SymbolTable & symbolTable)
+Expression::Expression(std::string expString, SymbolTable & symbolTable)
 	:rootNode(NULL),
 	stackMachine(NULL) 
 {
@@ -48,14 +46,14 @@ Expression::Expression(string expString, SymbolTable & symbolTable)
 	}
 }
 
-Expression::Expression(string expString)
+Expression::Expression(std::string expString)
 	:rootNode(NULL),
 	stackMachine(NULL) 
 {
 	init(expString);
 }
 
-void Expression::init(const string & expString) {
+void Expression::init(const std::string & expString) {
 
 	if (expString.length() == 0) {
 		throw ParserException("Empty expression");
@@ -77,7 +75,7 @@ void Expression::init(const string & expString) {
 		}				
 	} 
 
-	string trimstr = trim(expString);
+	std::string trimstr = trim(expString);
 	if (trimstr[trimstr.length() - 1] != ';'){
 		trimstr += ";";
 	}
@@ -100,7 +98,7 @@ Expression & Expression::operator=(const Expression &rhs) {
 void Expression::showStackInstructions(void)
 {
 	getStackMachine()->showInstructions();
-	cout.flush();
+	std::cout.flush();
 }
 
 double Expression::evaluateConstant(void)
@@ -122,7 +120,7 @@ double Expression::evaluateVectorTree(double* values)
 	}
 }
 
-string Expression::getEvaluationSummary(double* values)
+std::string Expression::getEvaluationSummary(double* values)
 {
 	return rootNode->getNodeSummary(values, rootNode);
 }
@@ -136,11 +134,11 @@ double Expression::evaluateVector(double* values)
 	}
 }
 
-void Expression::parseExpression(string exp)
+void Expression::parseExpression(std::string exp)
 {
 	//parseCount++;
 	try {
-		istringstream iss(exp);
+		std::istringstream iss(exp);
 		ExpressionParser parser(&iss);
 		
 		delete rootNode;
@@ -158,12 +156,12 @@ void Expression::parseExpression(string exp)
 	}
 }
 
-string Expression::infix(void)
+std::string Expression::infix(void)
 {
 	return rootNode->infixString(LANGUAGE_DEFAULT, 0);
 }
 
-string Expression::infix_Visit(void)
+std::string Expression::infix_Visit(void)
 {
 	return rootNode->infixString(LANGUAGE_VISIT, 0);
 }
@@ -174,7 +172,7 @@ void Expression::bindExpression(SymbolTable* symbolTable)
 	rootNode->bind(symbolTable);
 }
 
-string Expression::trim(string str)
+std::string Expression::trim(std::string str)
 {
 	int len = (int)str.length();
 	int st = 0;
@@ -191,11 +189,11 @@ string Expression::trim(string str)
 
 inline StackMachine* Expression::getStackMachine() {
 	if (stackMachine == NULL) {
-		vector<StackElement> elements_vector;
+		std::vector<StackElement> elements_vector;
 		rootNode->getStackElements(elements_vector);
 		StackElement* elements = new StackElement[elements_vector.size()];
 		int i = 0;
-		for (vector<StackElement>::iterator iter = elements_vector.begin(); iter != elements_vector.end(); iter ++) {
+		for (std::vector<StackElement>::iterator iter = elements_vector.begin(); iter != elements_vector.end(); iter ++) {
 			elements[i ++] = *iter;
 		}
 		stackMachine = new StackMachine(elements, (int)elements_vector.size());
@@ -204,11 +202,11 @@ inline StackMachine* Expression::getStackMachine() {
 	return stackMachine;
 }
 
-void Expression::getSymbols(vector<string>& symbols) {
+void Expression::getSymbols(std::vector<std::string>& symbols) {
 	rootNode->getSymbols(symbols, LANGUAGE_DEFAULT, 0);
 }
 
-SymbolTableEntry* Expression::getSymbolBinding(string symbol){
+SymbolTableEntry* Expression::getSymbolBinding(std::string symbol){
 	return rootNode->getBinding(symbol);
 }
 

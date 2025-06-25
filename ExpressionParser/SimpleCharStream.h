@@ -3,8 +3,6 @@
 
 #include <iostream>
 #include <string>
-using std::istream;
-using std::string;
 
 class SimpleCharStream
 {
@@ -20,7 +18,7 @@ private:
 	int line;
 	bool prevCharIsCR;
 	bool prevCharIsLF;
-	istream* inputStream;
+	std::istream* inputStream;
 	char* buffer;
 	int maxNextCharInd;
 	int inBuf;
@@ -28,12 +26,12 @@ private:
 	void ExpandBuff(bool wrapAround);
 	void FillBuff(void);
 	void UpdateLineColumn(char c);
-	void init(istream* dstream, int startline,  int startcolumn, int buffersize);
+	void init(std::istream* dstream, int startline,  int startcolumn, int buffersize);
 
 public:
-	SimpleCharStream(istream* dstream, int startline,  int startcolumn, int buffersize);
-	SimpleCharStream(istream* dstream, int startline,  int startcolumn);
-	SimpleCharStream(istream* dstream);
+	SimpleCharStream(std::istream* dstream, int startline,  int startcolumn, int buffersize);
+	SimpleCharStream(std::istream* dstream, int startline,  int startcolumn);
+	SimpleCharStream(std::istream* dstream);
 	~SimpleCharStream(void);
 
 	static bool staticFlag;
@@ -48,7 +46,7 @@ public:
 	int getBeginColumn(void);
 	int getBeginLine(void);
 	void backup(int amount);
-	string GetImage(void);
+	std::string GetImage(void);
 	char* GetSuffix(int len);
 	void Done(void);
 	void adjustBeginLineColumn(int newLine, int newCol);

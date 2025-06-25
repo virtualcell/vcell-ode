@@ -1,5 +1,4 @@
-#include <stdio.h>
-
+#include <format>
 #include "ASTFloatNode.h"
 #include "RuntimeException.h"
 #include "ExpressionParserTreeConstants.h"
@@ -20,21 +19,16 @@ ASTFloatNode::ASTFloatNode(int i) : Node(i) , value(0)
 ASTFloatNode::~ASTFloatNode() {
 }
 
-string ASTFloatNode::infixString(int lang, NameScope* nameScope)
+std::string ASTFloatNode::infixString(int lang, NameScope* nameScope)
 {
 	//if (value == NULL) {
     //    return string("NULL");
     //} else 
-	if (value == 0.0) {
-        return string("0.0");
-    } else {
-		char s[256];		
-		sprintf(s, "%.20lg\0", value);
-        return string(s);
-    }
+	if (value == 0.0) return std::string{"0.0"};
+	return std::format(":.20g", value);
 }
 
-void ASTFloatNode::getStackElements(vector<StackElement>& elements) {
+void ASTFloatNode::getStackElements(std::vector<StackElement>& elements) {
 	elements.push_back(StackElement(value));
 }
 

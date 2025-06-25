@@ -14,11 +14,11 @@ class Expression
 {
 public:
 	Expression(void);
-	Expression(string expString);
+	Expression(std::string expString);
 	/**
 	* symbolTable must remain valid memory
 	*/
-	Expression(string expString, SymbolTable & symbolTable);
+	Expression(std::string expString, SymbolTable & symbolTable);
 	Expression(Expression* expression);
 	Expression(const Expression &);
 	~Expression(void);
@@ -30,22 +30,22 @@ public:
 	// exercise the new way of evaluating vector by using stack machine
 	double evaluateVector(double* values);
 
-	string infix(void);
+	std::string infix(void);
 	/**
 	* symbolTable must remain valid memory
 	*/
 	void bindExpression(SymbolTable* symbolTable);
-	static string trim(string str);
-	void getSymbols(vector<string>& symbols); 
+	static std::string trim(std::string str);
+	void getSymbols(std::vector<std::string>& symbols);
 
-	string getEvaluationSummary(double* values);
+	std::string getEvaluationSummary(double* values);
 
-	SymbolTableEntry* getSymbolBinding(string symbol);
+	SymbolTableEntry* getSymbolBinding(std::string symbol);
 	double evaluateProxy();
 	
 	void showStackInstructions();
 	void substituteInPlace(Expression* origExp, Expression* newExp);
-	string infix_Visit(void);
+	std::string infix_Visit(void);
 	bool isConstant( ) const;
 
 private:
@@ -57,13 +57,13 @@ private:
 	//static long derivativeCount;
 	//static long substituteCount;
 	//static long bindCount;
-	void parseExpression(string exp);
+	void parseExpression(std::string exp);
 	StackMachine* stackMachine;
 	inline StackMachine* getStackMachine();
 	/**
 	* common ctor code
 	*/ 
-	void init(const string & expString);
+	void init(const std::string & expString);
 };
 }
 #endif

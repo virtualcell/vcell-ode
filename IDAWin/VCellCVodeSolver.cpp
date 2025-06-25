@@ -1,17 +1,14 @@
 #include "VCellCVodeSolver.h"
 #include "OdeResultSet.h"
 #include <Expression.h>
-#include <SimpleSymbolTable.h>
 #include <Exception.h>
-#include <assert.h>
+#include <cassert>
 #include <DivideByZeroException.h>
 #include <FunctionDomainException.h>
 #include <FunctionRangeException.h>
-#include "StoppedByUserException.h"
-#include <time.h>
 #include <sys/timeb.h>
 #include <sstream>
-using std::stringstream;
+#include <string>
 
 #ifdef USE_MESSAGING
 #include <VCELL/SimulationMessaging.h>
@@ -122,17 +119,17 @@ void VCellCVodeSolver::throwCVodeErrorMessage(int returnCode) {
 			throw "CV_LSOLVE_FAIL: the linear solver's solve routine failed in an unrecoverable manner";
 		}
 		case CV_REPTD_RHSFUNC_ERR: {
-			stringstream ss;
+			std::stringstream ss;
 			ss << "CV_REPTD_RHSFUNC_ERR: repeated recoverable right-hand side function errors : " << recoverableErrMsg;
 			throw ss.str();
 		}
 		case CV_UNREC_RHSFUNC_ERR:{
-			stringstream ss;
+			std::stringstream ss;
 			ss << "CV_UNREC_RHSFUNC_ERR: the right-hand side failed in a recoverable manner, but no recovery is possible : " <<  recoverableErrMsg;
 			throw ss.str();
 		}
 		case CV_FIRST_RHSFUNC_ERR: {
-			stringstream ss;
+			std::stringstream ss;
 			ss << "CV_FIRST_RHSFUNC_ERR: The right-hand side routine failed at the first call : " <<  recoverableErrMsg;
 			throw ss.str();
 		}
@@ -178,8 +175,8 @@ Input format:
 */
 void VCellCVodeSolver::readEquations(std::istream& inputstream) {
 	try {
-		string name;
-		string exp;
+		std::string name;
+		std::string exp;
 		
 		rateExpressions = new Expression*[NEQ];		
 
@@ -192,7 +189,7 @@ void VCellCVodeSolver::readEquations(std::istream& inputstream) {
 			try {			
 				initialConditionExpressions[i] = readExpression(inputstream);
 			} catch (VCell::Exception& ex) {
-				throw VCell::Exception(string("Initial condition expression for [") + variableNames[i] + "] " + ex.getMessage());
+				throw VCell::Exception(std::string("Initial condition expression for [") + variableNames[i] + "] " + ex.getMessage());
 			}
 
 			// RATE
@@ -200,13 +197,13 @@ void VCellCVodeSolver::readEquations(std::istream& inputstream) {
 			try {
 				rateExpressions[i] = readExpression(inputstream);
 			} catch (VCell::Exception& ex) {
-				throw VCell::Exception(string("Rate expression for [") + variableNames[i] + "] " + ex.getMessage());
+				throw VCell::Exception(std::string("Rate expression for [") + variableNames[i] + "] " + ex.getMessage());
 			}
 		}				
 	} catch (char* ex) {
-		throw VCell::Exception(string("VCellCVodeSolver::readInput() : ") + ex);
+		throw VCell::Exception(std::string("VCellCVodeSolver::readInput() : ") + ex);
 	} catch (VCell::Exception& ex) {
-		throw VCell::Exception(string("VCellCVodeSolver::readInput() : ") + ex.getMessage());
+		throw VCell::Exception(std::string("VCellCVodeSolver::readInput() : ") + ex.getMessage());
 	} catch (...) {
 		throw "VCellCVodeSolver::readInput() : caught unknown exception";
 	}
@@ -230,15 +227,15 @@ int VCellCVodeSolver::RHS (realtype t, N_Vector y, N_Vector r) {
 		}
 		recoverableErrMsg = "";
 		return 0;
-	}catch (DivideByZeroException e){
+	}catch (DivideByZeroException& e){
 		std::cout << "failed to evaluate residual: " << e.getMessage() << std::endl;
 		recoverableErrMsg = e.getMessage();
 		return 1;
-	}catch (FunctionDomainException e){
+	}catch (FunctionDomainException& e){
 		std::cout << "failed to evaluate residual: " << e.getMessage() << std::endl;
 		recoverableErrMsg = e.getMessage();
 		return 1;
-	}catch (FunctionRangeException e){
+	}catch (FunctionRangeException& e){
 		std::cout << "failed to evaluate residual: " << e.getMessage() << std::endl;
 		recoverableErrMsg = e.getMessage();
 		return 1;
@@ -260,14 +257,11 @@ int VCellCVodeSolver::RootFn_callback(realtype t, N_Vector y, realtype *gout, vo
 }
 
 void VCellCVodeSolver::solve(double* paramValues, bool bPrintProgress, FILE* outputFile, void (*checkStopRequested)(double, long)) {
-	if (checkStopRequested != 0) {
-		checkStopRequested(STARTING_TIME, 0);
-	}
-
+	if (checkStopRequested != nullptr) checkStopRequested(STARTING_TIME, 0);
 	writeFileHeader(outputFile);
 
 	// clear data in result set before solving
-	odeResultSet->clearData();
+	this->odeResultSet->clearData();
 
 	// copy parameter values to the end of values, these will stay the same during solving
 	memset(values, 0, (NEQ + 1) * sizeof(double));
@@ -301,9 +295,9 @@ void VCellCVodeSolver::initCVode(double* paramValues) {
 
 void VCellCVodeSolver::reInit(double t) {
 	int flag = 0;
-	if (solver == 0) {
+	if (solver == nullptr) {
 		solver = CVodeCreate(CV_BDF, CV_NEWTON);
-		if (solver == 0) {
+		if (solver == nullptr) {
 			throw "VCellCVodeSolver:: Out of memory";
 		}
 		flag = CVodeMalloc(solver, RHS_callback, t, y, ToleranceType, RelativeTolerance, &AbsoluteTolerance);
@@ -434,10 +428,9 @@ void VCellCVodeSolver::cvodeSolve(bool bPrintProgress, FILE* outputFile, void (*
 				if (returnCode == CV_ROOT_RETURN || iterationCount % keepEvery == 0 || Time >= ENDING_TIME){
 					outputCount++;
 					if (outputCount * (NEQ + 1) * bytesPerSample > MaxFileSizeBytes){ 
-						/* if more than one gigabyte, then fail */ 
-						char msg[100];
-						sprintf(msg, "output exceeded maximum %d bytes", MaxFileSizeBytes);
-						throw VCell::Exception(msg);
+						/* if more than one gigabyte, then fail */
+						const std::string msg{"output exceeded maximum " + std::to_string(MaxFileSizeBytes) + " bytes"};
+						throw VCell::Exception(msg.c_str());
 					}
 					writeData(Time, outputFile);
 					if (bPrintProgress) {

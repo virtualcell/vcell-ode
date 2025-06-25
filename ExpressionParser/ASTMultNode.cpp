@@ -7,7 +7,6 @@
 //#include "ParseException.h"
 
 #include <sstream>
-using std::stringstream;
 
 ASTMultNode::ASTMultNode() : Node(JJTMULTNODE) {
 }
@@ -27,7 +26,7 @@ bool ASTMultNode::isBoolean() {
 	  return true;
 }
 
-string ASTMultNode::infixString(int lang, NameScope* nameScope)
+std::string ASTMultNode::infixString(int lang, NameScope* nameScope)
 {
 	bool* boolChildFlags = new bool[jjtGetNumChildren()];
 	bool bAllBoolean = true;
@@ -43,7 +42,7 @@ string ASTMultNode::infixString(int lang, NameScope* nameScope)
 
 	}
 
-	stringstream buffer;
+	std::stringstream buffer;
 	buffer << "(";
 
 	if (bAllBoolean || bNoBoolean || (lang != LANGUAGE_C && lang != LANGUAGE_VISIT)) { // old way
@@ -59,8 +58,8 @@ string ASTMultNode::infixString(int lang, NameScope* nameScope)
 			}
 		}		
 	} else {		
-		stringstream conditionBuffer;
-		stringstream valueBuffer;
+		std::stringstream conditionBuffer;
+		std::stringstream valueBuffer;
 		for (int i=0;i<jjtGetNumChildren();i++){
 			if (boolChildFlags[i]) {
 				if (conditionBuffer.str().length() > 0) {
@@ -97,12 +96,12 @@ string ASTMultNode::infixString(int lang, NameScope* nameScope)
 		}
 	}
 	buffer << ")";
-	string s = buffer.str();
+	std::string s = buffer.str();
 	delete [] boolChildFlags;
 	return s;
 }
 
-void ASTMultNode::getStackElements(vector<StackElement>& elements) {
+void ASTMultNode::getStackElements(std::vector<StackElement>& elements) {
 	
 	int startSize = (int)elements.size();
 	
@@ -148,7 +147,7 @@ void ASTMultNode::getStackElements(vector<StackElement>& elements) {
 	if (indexBooleanChildren>0){
 		int finalSize = (int)elements.size();
 		int size = finalSize-startSize;
-		vector<StackElement>::reverse_iterator iter = elements.rbegin();
+		std::vector<StackElement>::reverse_iterator iter = elements.rbegin();
 		for (int offset = 0; offset < size; ++offset) {
 			if ((*iter).type==TYPE_BZ && (*iter).branchOffset==0){
 				(*iter).branchOffset = offset+1;

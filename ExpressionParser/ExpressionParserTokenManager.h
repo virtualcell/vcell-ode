@@ -3,8 +3,8 @@
 
 #include <iostream>
 #include <string>
-using std::string;
-using std::ostream;
+
+
 
 #include "Token.h"
 #include "SimpleCharStream.h"
@@ -33,10 +33,10 @@ private:
 	static int64 jjtoSkip[];
 	char curChar;
 
-	static string* jjstrLiteralImages[];
-	static string lexStateNames[];
-	ostream* debugStream;
-	void setDebugStream(ostream* os);
+	static std::string* jjstrLiteralImages[];
+	static std::string lexStateNames[];
+	std::ostream* debugStream;
+	void setDebugStream(std::ostream* os);
 	void ReInit(SimpleCharStream* stream);
 	void ReInit(SimpleCharStream* stream, int lexState);
 	void SwitchTo(int lexState);

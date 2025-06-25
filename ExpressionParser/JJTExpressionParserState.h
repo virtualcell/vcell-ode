@@ -2,7 +2,6 @@
 #define JJEXPRESSIONPARSERSTATE_H
 
 #include <vector>
-using std::vector;
 
 #include "Node.h"
 
@@ -25,8 +24,8 @@ public:
 
 private:
 	void popMark(void);
-	vector<Node*> nodes;
-	vector<int> marks;
+	std::vector<Node*> nodes;
+	std::vector<int> marks;
 	int sp;
 	int mk;
 	bool node_created;

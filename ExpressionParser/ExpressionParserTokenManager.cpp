@@ -8,13 +8,13 @@
 
 int ExpressionParserTokenManager::jjnextStates[] = {35, 36, 41, 42, 31, 32, 31, 32, 33, 22, 23, 39, 40, 43, 44, };
 
-string* ExpressionParserTokenManager::jjstrLiteralImages[] = {
-	new string(""), NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, 
-	NULL, NULL, new string("\136"), new string("\53"), new string("\55"), new string("\52"), new string("\57"), 
-	NULL, NULL, NULL, NULL, NULL, NULL, NULL, new string("\73"), new string("\50"), new string("\51"), new string("\54"), 
+std::string* ExpressionParserTokenManager::jjstrLiteralImages[] = {
+	new std::string(""), NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL,
+	NULL, NULL, new std::string("\136"), new std::string("\53"), new std::string("\55"), new std::string("\52"), new std::string("\57"),
+	NULL, NULL, NULL, NULL, NULL, NULL, NULL, new std::string("\73"), new std::string("\50"), new std::string("\51"), new std::string("\54"),
 };
 
-string ExpressionParserTokenManager::lexStateNames[] = {
+std::string ExpressionParserTokenManager::lexStateNames[] = {
    "DEFAULT", 
 };
 
@@ -22,7 +22,7 @@ int64 ExpressionParserTokenManager::jjtoToken[] = { 0x789ff021L, };
 
 int64 ExpressionParserTokenManager::jjtoSkip[] = {  0x1eL, };
 
-void ExpressionParserTokenManager::setDebugStream(ostream* os)
+void ExpressionParserTokenManager::setDebugStream(std::ostream* os)
 {
 	debugStream = os;
 }
@@ -527,7 +527,7 @@ void ExpressionParserTokenManager::SwitchTo(int lexState)
 	if (lexState >= 1 || lexState < 0) {
 		char ex[20];
 		sprintf(ex, "%d\0", lexState);
-		throw RuntimeException("Error: Ignoring invalid lexical state: " + string(ex) + ".State unchanged.");
+		throw RuntimeException("Error: Ignoring invalid lexical state: " + std::string(ex) + ".State unchanged.");
 	}
 	else
 		curLexState = lexState;
@@ -537,7 +537,7 @@ Token* ExpressionParserTokenManager::jjFillToken(void)
 {
 	Token* t = Token::newToken(jjmatchedKind);
 	t->kind = jjmatchedKind;
-	string* im = jjstrLiteralImages[jjmatchedKind];
+	std::string* im = jjstrLiteralImages[jjmatchedKind];
 	t->image = (im == NULL) ? input_stream->GetImage() : *im;
 	t->beginLine = input_stream->getBeginLine();
 	t->beginColumn = input_stream->getBeginColumn();
@@ -590,7 +590,7 @@ Token* ExpressionParserTokenManager::getNextToken(void)
 		}
 		int error_line = input_stream->getEndLine();
 		int error_column = input_stream->getEndColumn();
-		string error_after = "";
+		std::string error_after = "";
 		bool EOFSeen = false;
 		try { 
 			input_stream->readChar(); 
@@ -613,8 +613,8 @@ Token* ExpressionParserTokenManager::getNextToken(void)
 		if (EOFSeen)
 			sprintf(chrs, "Lexical error at line %d, column %d.  Encountered:  <EOF>\0", error_line, error_column);
 		else  {
-			string a = Exception::add_escapes(string(&curChar, 1));
-			string b = Exception::add_escapes(error_after);
+			std::string a = Exception::add_escapes(std::string(&curChar, 1));
+			std::string b = Exception::add_escapes(error_after);
 			sprintf(chrs, "Lexical error at line %d, column %d.  Encountered: \"%s\" (%d) after : \"%s\"\0", error_line, error_column, a.c_str(), curChar, b.c_str());
 		}
 

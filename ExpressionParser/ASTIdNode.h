@@ -10,14 +10,14 @@ class ASTIdNode : public Node
 public:
 	ASTIdNode(int i);
 	~ASTIdNode();
-	string name;
-	string infixString(int lang, NameScope* nameScope);
+	std::string name;
+	std::string infixString(int lang, NameScope* nameScope);
 	SymbolTableEntry* symbolTableEntry;
-	SymbolTableEntry* getBinding(string symbol);
+	SymbolTableEntry* getBinding(std::string symbol);
 	void bind(SymbolTable* symbolTable);
-	void getStackElements(vector<StackElement>& elements);
+	void getStackElements(std::vector<StackElement>& elements);
 	double evaluate(int evalType, double* values=0); 
-	void getSymbols(vector<string>& symbols, int language, NameScope* nameScope);
+	void getSymbols(std::vector<std::string>& symbols, int language, NameScope* nameScope);
 
 	Node* copyTree();
 	bool equals(Node* node);

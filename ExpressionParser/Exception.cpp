@@ -1,6 +1,5 @@
-#include <stdlib.h>
 #include <typeinfo>
-#include <string.h>
+#include <cstring>
 
 #include "Exception.h"
 #include "ParserException.h"
@@ -29,7 +28,7 @@ VCell::Exception::~Exception(void) throw( )
 {
 }
 
-string VCell::Exception::getExactMessage() {
+std::string VCell::Exception::getExactMessage() {
 	return message;
 }
 
@@ -37,7 +36,7 @@ const char * VCell::Exception::what() const throw( ){
 	return message.c_str( );
 }
 
-string VCell::Exception::getMessage(void)
+std::string VCell::Exception::getMessage(void)
 {
 	return title + " : " + getExactMessage();
 }
@@ -125,7 +124,7 @@ static void itoa1(int n, char* s, int base)
     reverse(s);
 }
 
-string VCell::Exception::add_escapes(string str)
+std::string VCell::Exception::add_escapes(string str)
 {
 	string retval;
     char ch;
