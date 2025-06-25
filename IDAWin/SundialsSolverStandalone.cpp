@@ -1,273 +1,191 @@
-// Debug
-#ifdef _DEBUG
-	//#define _CRTDBG_MAP_ALLOC
-	#ifdef _CRTDBG_MAP_ALLOC
-	#include <stdlib.h>
-	#include <crtdbg.h>
-	#else
-	//#include <vld.h>
-	#endif
-#endif
 // Messaging
 #ifdef USE_MESSAGING
 #include <VCELL/SimulationMessaging.h>
+#include <memory.h>
 #endif
 // Standard Includes
 #include <iomanip>
 #include <fstream>
 #include <sstream>
-#include <memory.h>
-#include <cstdlib>
 // Local Includes
 #include "VCellCVodeSolver.h"
 #include "VCellIDASolver.h"
-#include "OdeResultSet.h"
 #include "StoppedByUserException.h"
 #include <VCELL/GitDescribe.h>
-
-
-
+#include <argparse/argparse.hpp>
 #define CVODE_SOLVER "CVODE"
 #define IDA_SOLVER "IDA"
 
-void printUsage() {
-	std::string usageMessage{"Usage: SundialsSolverStandalone input output"};
-	#ifdef USE_MESSAGING
-	usageMessage += " [-tid 0]";
-	#endif
-	std::cout << usageMessage << std::endl;
+int parseAndRunWithArgParse(int argc, char *argv[]);
+void activateSolver(std::ifstream& inputFileStream, FILE* outputFile, int taskID);
+void loadJMSInfo(std::istream &ifsInput, int taskID);
+void errExit(int returnCode, std::string &errorMsg);
+
+int main(int argc, char *argv[]) {
+	std::cout << std::setprecision(20);
+	return parseAndRunWithArgParse(argc, argv);
 }
 
-void loadJMSInfo(std::istream& ifsInput, int taskID) {
-	char *broker = new char[256];
-	char *smqusername = new char[256];
-	char *password = new char[256];
-	char *qname = new char[256];
-	char *tname = new char[256];
-	char *vcusername = new char[256];
-	string nextToken;
+int parseAndRunWithArgParse(int argc, char *argv[]) {
+	int taskID = -1;
+	std::string inputFilePath;
+	std::string outputFilePath;
+	std::string errMsg;
+	int returnCode = 0;
+
+	argparse::ArgumentParser argumentParser("program_name", g_GIT_DESCRIBE);
+	argumentParser.add_argument("input").help("path to directory with input files.").store_into(inputFilePath);
+	argumentParser.add_argument("output").help("path to directory for output files.").store_into(outputFilePath);
+	#ifdef USE_MESSAGING
+	argumentParser.add_argument("-tid").help("path to solver to run.").store_into(taskID);
+	#endif
+
+	try {
+		argumentParser.parse_args(argc, argv);
+	}
+	catch (const std::exception& err) {
+		std::cerr << err.what() << std::endl;
+		std::cerr << argumentParser;
+		return -1;
+	}
+
+	FILE *outputFile = NULL;
+	std::ifstream inputFileStream{inputFilePath};
+	try {
+		if (!inputFileStream.is_open()) { throw std::runtime_error("input file [" + inputFilePath + "] doesn't exit!"); }
+
+		// Open the output file...
+		if ((outputFile = fopen(argv[2], "w")) == NULL) {
+			throw std::runtime_error("Could not open output file[" + outputFilePath + "] for writing.");
+		}
+		activateSolver(inputFileStream, outputFile, taskID);
+
+	} catch (const char *ex) {
+		errMsg += ex;
+		returnCode = -1;
+	} catch (std::string &ex) {
+		errMsg += ex;
+		returnCode = -1;
+	} catch (StoppedByUserException&) {
+		returnCode = 0; // stopped by user;
+	} catch (VCell::Exception &ex) {
+		errMsg += ex.getMessage();
+		returnCode = -1;
+	} catch (const std::exception& err) {
+		errMsg += err.what();
+		returnCode = -1;
+	} catch (...) {
+		errMsg += "unknown error";
+		returnCode = -1;
+	}
+
+	if (outputFile != NULL) { fclose(outputFile); }
+	if (inputFileStream.is_open()) { inputFileStream.close(); }
+	errExit(returnCode, errMsg);
+	return returnCode;
+}
+
+void activateSolver(std::ifstream& inputFileStream, FILE* outputFile, int taskID) {
+	std::string solver;
+
+	while (!inputFileStream.eof()) { // Note break statement if "SOLVER" encountered
+		std::string nextToken;
+		inputFileStream >> nextToken;
+		if (nextToken.empty()) continue;
+		if (nextToken[0] == '#') getline(inputFileStream, nextToken);
+		else if (nextToken == "JMS_PARAM_BEGIN") {
+			loadJMSInfo(inputFileStream, taskID);
+			#ifdef USE_MESSAGING
+			SimulationMessaging::getInstVar()->start(); // start the thread
+			#endif
+		} else if (nextToken == "SOLVER") {
+			inputFileStream >> solver;
+			break;
+		}
+	}
+	#ifdef USE_MESSAGING
+	// should only happen during testing for solver compiled with messaging but run locally.
+	if (SimulationMessaging::getInstVar() == nullptr) { SimulationMessaging::create(); }
+	#endif
+
+	if (solver.empty()) { throw "Solver not defined "; }
+	VCellSundialsSolver *vss = nullptr;
+	if (solver == IDA_SOLVER) {
+		vss = new VCellIDASolver();
+	} else if (solver == CVODE_SOLVER) {
+		vss = new VCellCVodeSolver();
+	} else {
+		std::stringstream ss;
+		ss << "Solver " << solver << " not defined!";
+		throw ss.str();
+	}
+	vss->readInput(inputFileStream);
+	vss->solve(nullptr, true, outputFile, VCellSundialsSolver::checkStopRequested);
+
+	delete vss;
+}
+
+void loadJMSInfo(std::istream &ifsInput, int taskID) {
+	#ifndef USE_MESSAGING
+		return; // Only useful for messaging; let's not waste time!
+	#else
+
+	if (taskID < 0) {
+		SimulationMessaging::create();
+		return; // No need to do any parsing
+	}
+	std::string broker;
+	std::string smqUserName;
+	std::string password;
+	std::string qName;
+	std::string topicName;
+	std::string vCellUsername;
 	int simKey, jobIndex;
 
-	while (!ifsInput.eof()) {			
-		nextToken = "";
-		ifsInput >> nextToken;			
-		if (nextToken.size() == 0) {
+	while (!ifsInput.eof()) {
+		std::string nextToken;
+		ifsInput >> nextToken;
+		if (nextToken.empty()) continue;
+		if (nextToken[0] == '#') {
+			// getline(ifsInput, nextToken); // Is this ignoring because of a comment?
+			ifsInput.ignore('\n');
 			continue;
-		} else if (nextToken[0] == '#') {
-			getline(ifsInput, nextToken);
-			continue;
-		}  else if (nextToken == "JMS_PARAM_END") {
-			break;
-		} else if (nextToken == "JMS_BROKER") {
-			std::string brokerStr;
-			ifsInput >> brokerStr;
-			memset(broker, 0, 256 * sizeof(char));
-			strncpy(broker, brokerStr.c_str(), 256);
-		} else if (nextToken == "JMS_USER") {
-			std::string usernameStr, passwordStr;
-			ifsInput >> usernameStr >> passwordStr;
-			memset(smqusername, 0, 256 * sizeof(char));
-			memset(password, 0, 256 * sizeof(char));
-			strncpy(smqusername, usernameStr.c_str(), 256);
-			strncpy(password, passwordStr.c_str(), 256);
-		} else if (nextToken == "JMS_QUEUE") {
-			std::string qnameStr;
-			ifsInput >> qnameStr;
-			memset(qname, 0, 256 * sizeof(char));
-			strncpy(qname, qnameStr.c_str(), 256);
-		} else if (nextToken == "JMS_TOPIC") {
-			std::string topicStr;
-			ifsInput >> topicStr;
-			memset(tname, 0, 256 * sizeof(char));
-			strncpy(tname, topicStr.c_str(), 256);
-		} else if (nextToken == "VCELL_USER") {
-			std::string vcusernameStr;
-			ifsInput >> vcusernameStr;
-			memset(vcusername, 0, 256 * sizeof(char));
-			strncpy(vcusername, vcusernameStr.c_str(), 256);
+		}
+		if (nextToken == "JMS_PARAM_END") { ifsInput.ignore(EOF); } else if (
+			nextToken == "JMS_BROKER") { ifsInput >> broker; } else if (
+			nextToken == "JMS_USER") { ifsInput >> smqUserName >> password; } else if (
+			nextToken == "JMS_QUEUE") { ifsInput >> qName; } else if (
+			nextToken == "JMS_TOPIC") { ifsInput >> topicName; } else if (nextToken == "VCELL_USER") {
+			ifsInput >> vCellUsername;
 		} else if (nextToken == "SIMULATION_KEY") {
 			ifsInput >> simKey;
 			continue;
 		} else if (nextToken == "JOB_INDEX") {
 			ifsInput >> jobIndex;
 			continue;
-		} 
+		}
 	}
 
-#ifdef USE_MESSAGING	
-	if (taskID >= 0) {
-		SimulationMessaging::create(broker, smqusername, password, qname, tname, vcusername, simKey, jobIndex, taskID);
-	} else {
-		SimulationMessaging::create();
-	}
-#endif
+	SimulationMessaging::create(broker.c_str(), smqUserName.c_str(),
+	                            password.c_str(), qName.c_str(), topicName.c_str(),
+	                            vCellUsername.c_str(), simKey, jobIndex, taskID);
+	#endif
 }
 
-void errExit(int returnCode, std::string& errorMsg) {
-#ifdef USE_MESSAGING
+void errExit(int returnCode, std::string &errorMsg) {
+	#ifdef USE_MESSAGING
 	if (returnCode != 0) {
-		if (SimulationMessaging::getInstVar() != 0 && !SimulationMessaging::getInstVar()->isStopRequested()) {
+		if (SimulationMessaging::getInstVar() != nullptr && !SimulationMessaging::getInstVar()->isStopRequested()) {
 			SimulationMessaging::getInstVar()->setWorkerEvent(new WorkerEvent(JOB_FAILURE, errorMsg.c_str()));
-		}	
+		}
 	}
-	if (SimulationMessaging::getInstVar() != 0) {
+	#endif
+
+	if (returnCode != 0) std::cerr << errorMsg << std::endl;
+	#ifdef USE_MESSAGING
+	else if (SimulationMessaging::getInstVar() != nullptr) {
 		SimulationMessaging::getInstVar()->waitUntilFinished();
 		delete SimulationMessaging::getInstVar();
-	} else {
-		if (returnCode != 0) {	
-			std::cerr << errorMsg << std::endl;
-		}
 	}
-#else
-	if (returnCode != 0) {	
-		std::cerr << errorMsg << std::endl;
-	}
-#endif
-}
-
-int main(int argc, char *argv[]) {
-    	std::cout 
-	    << "Sundials Standalone version " << g_GIT_DESCRIBE
-	    << std::endl; 
-	std::cout << std::setprecision(20);
-
-	int taskID = -1;
-	string inputfname;
-	string outputfname;
-	string solver;
-	string errMsg;
-	int returnCode = 0;
-
-	if (argc < 3) {
-		std::cout << "Missing arguments!" << std::endl;
-		printUsage();
-		exit(1);
-	}
-	for (int i = 1; i < argc; i ++) {
-		if (!strcmp(argv[i], "-tid")) {
-#ifdef USE_MESSAGING
-			i ++;
-			if (i >= argc) {
-				std::cout << "Missing taskID!" << std::endl;
-				printUsage();
-				exit(1);
-			}
-			for (int j = 0; j < (int)strlen(argv[i]); j ++) {
-				if (argv[i][j] < '0' || argv[i][j] > '9') {
-					std::cout << "Wrong argument : " << argv[i] << ", taskID must be an integer!" << std::endl;
-					printUsage();
-					exit(1);
-				}
-			}
-			taskID = atoi(argv[i]);
-#else
-			std::cout << "Wrong argument : " << argv[i] << std::endl;
-			printUsage();
-			exit(1);
-#endif
-		} else {
-			inputfname = argv[i];
-			i ++;
-			outputfname = argv[i];
-		}	
-	}
-
-	FILE* outputFile = NULL;
-	std::ifstream inputstream(inputfname.c_str());
-	try {		
-		if (!inputstream.is_open()) {
-			throw std::string("input file [") + inputfname + "] doesn't exit!";
-		}
-
-		// Open the output file...		
-		if ((outputFile = fopen(argv[2], "w")) == NULL) {
-			throw std::string("Could not open output file[") +  outputfname + "] for writing.";
-		}
-
-		string nextToken;		
-
-		while (!inputstream.eof()) {			
-			nextToken = "";
-			inputstream >> nextToken;	
-			if (nextToken.empty()) {
-				continue;
-			} else if (nextToken[0] == '#') {
-				getline(inputstream, nextToken);
-				continue;
-			} else if (nextToken == "JMS_PARAM_BEGIN") {
-				loadJMSInfo(inputstream, taskID);
-#ifdef USE_MESSAGING
-				SimulationMessaging::getInstVar()->start(); // start the thread
-#endif				
-			} else if (nextToken == "SOLVER") {
-				inputstream >> solver;
-				break;
-			}
-		}
-#ifdef USE_MESSAGING
-		// should only happen during testing for solver compiled with messaging but run locally.
-		if (SimulationMessaging::getInstVar() == nullptr) {
-			SimulationMessaging::create();
-		}
-#endif
-
-		if (solver.empty()) {
-			throw "Solver not defined ";
-		}
-
-#ifdef _CRTDBG_MAP_ALLOC
-		_CrtMemState s1, s2, s3;
-#endif
-		errMsg += solver + " solver failed : ";
-#ifdef _CRTDBG_MAP_ALLOC
-		_CrtMemCheckpoint( &s1 );
-#endif
-		VCellSundialsSolver* vss = 0;
-		if (solver == IDA_SOLVER) {
-			vss = new VCellIDASolver();
-		} else if (solver == CVODE_SOLVER) {
-			vss = new VCellCVodeSolver();
-		} else {
-			std::stringstream ss;
-			ss << "Solver " << solver << " not defined!";
-			throw ss.str();
-		}
-		vss->readInput(inputstream);
-		vss->solve(0, true, outputFile, VCellSundialsSolver::checkStopRequested);
-
-		delete vss;
-#ifdef _CRTDBG_MAP_ALLOC
-		_CrtMemCheckpoint( &s2 );
-		if ( _CrtMemDifference( &s3, &s1, &s2) )
-		_CrtMemDumpStatistics( &s3 );
-		_CrtDumpMemoryLeaks();
-#endif		
-	} catch (const char* ex) {
-		errMsg += ex;
-		returnCode = -1;
-	} catch (string& ex) {
-		errMsg += ex;
-		returnCode = -1;
-	} catch (StoppedByUserException) {
-		returnCode = 0;  // stopped by user;
-	} catch (VCell::Exception& ex) {
-		errMsg += ex.getMessage();
-		returnCode = -1;
-	} catch (...) {
-		errMsg += "unknown error";
-		returnCode = -1;
-	}
-	
-	if (outputFile != NULL) {
-		fclose(outputFile);
-	}
-	if (inputstream.is_open()) {
-		inputstream.close();
-	}
-
-	errExit(returnCode, errMsg);
-#ifdef _CRTDBG_MAP_ALLOC
-	_CrtDumpMemoryLeaks();
-#endif
-	return returnCode;
+	#endif
 }
