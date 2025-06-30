@@ -1,7 +1,10 @@
 #include <math.h>
-#include <stdio.h>
+#include <cstdio>
 
 #include "ASTPowerNode.h"
+
+#include <format>
+
 #include "RuntimeException.h"
 #include "DivideByZeroException.h"
 #include "FunctionDomainException.h"
@@ -21,9 +24,8 @@ ASTPowerNode::~ASTPowerNode() {
 std::string ASTPowerNode::infixString(int lang, NameScope* nameScope)
 {
     if (jjtGetNumChildren() != 2) {
-		char ch[20];
-		sprintf(ch, "%d\0", jjtGetNumChildren());
-        throw RuntimeException("There are" + std::string(ch) + " arguments for the power operator, expecting 2");
+    	std::string errMsg{std::format("There are {} arguments for the power operator, expecting 2", jjtGetNumChildren())};
+        throw RuntimeException(errMsg);
     }
 
     std::string buffer;
@@ -52,9 +54,8 @@ void ASTPowerNode::getStackElements(std::vector<StackElement>& elements) {
 
 double ASTPowerNode::evaluate(int evalType, double* values) {
 	if (jjtGetNumChildren() != 2) {
-		char chrs[1000];
-		sprintf(chrs, "ASTPowerNode: wrong number of arguments for '^' (%d), expected 2\0", jjtGetNumChildren());
-		throw ExpressionException(chrs);
+		std::string errMsg{std::format("ASTPowerNode: wrong number of arguments for '^' ({}), expected 2", jjtGetNumChildren())};
+		throw ExpressionException(errMsg);
 	}
 	//
 	// see if there are any constant 0.0's, if there are simplify to 0.0
@@ -84,25 +85,22 @@ double ASTPowerNode::evaluate(int evalType, double* values) {
 	if (exponentException == NULL && baseException == NULL) {
 		if (baseValue == 0.0 && exponentValue < 0.0) {
 			std::string childString = infixString(LANGUAGE_DEFAULT,0);
-			char problem[1000];
-			sprintf(problem, "u^v and u=0 and v=%lf<0", exponentValue);
+			std::string problem{std::format("u^v and u=0 and v={}<0", exponentValue)};
 			std::string errorMsg = getFunctionDomainError(problem, values, "u", baseChild, "v", exponentChild);
 			throw DivideByZeroException(errorMsg);
-		} else if (baseValue < 0.0 && exponentValue != MathUtil::round(exponentValue)) {
-			char problem[1000];
-			sprintf(problem, "u^v and u=%lf<0 and v=%lf not an integer: undefined", baseValue, exponentValue);
+		}
+		if (baseValue < 0.0 && exponentValue != MathUtil::round(exponentValue)) {
+			std::string problem{std::format("u^v and u={}<0 and v={} not an integer: undefined", baseValue, exponentValue)};
 			std::string errorMsg = getFunctionDomainError(problem, values, "u", baseChild, "v", exponentChild);
 			throw FunctionDomainException(errorMsg);
-		} else {
-			double result = pow(baseValue, exponentValue);
-			if (MathUtil::double_infinity == -result || MathUtil::double_infinity == result || result != result) {
-				char problem[1000];
-				sprintf(problem, "u^v evaluated to %lf, u=%lf, v=%lf", result, baseValue);
-				std::string errorMsg = getFunctionDomainError(problem, values, "u", baseChild, "v", exponentChild);
-				throw FunctionDomainException(errorMsg);
-			}
-			return result;
 		}
+		double result = pow(baseValue, exponentValue);
+		if (MathUtil::double_infinity == -result || MathUtil::double_infinity == result || result != result) {
+			std::string problem{std::format("u^v evaluated to {}, u={}, v={}", result, baseValue, exponentValue)};
+			std::string errorMsg = getFunctionDomainError(problem, values, "u", baseChild, "v", exponentChild);
+			throw FunctionDomainException(errorMsg);
+		}
+		return result;
 	} else if (exponentException == 0 && exponentValue == 0.0) {
 		return 1.0;
 	} else if (baseException == 0 && baseValue == 1.0) {

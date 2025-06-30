@@ -2,6 +2,8 @@
 
 #include "ParseException.h"
 
+#include <format>
+
 std::string ParseException::eol = string("\n");
 
 ParseException::ParseException() : Exception("ParseException", "")
@@ -70,8 +72,7 @@ std::string ParseException::getExactMessage(void)
 		retval += add_escapes(tok->image);
 		tok = tok->next; 
 	}
-	char chrs[128];
-	sprintf(chrs, "\" at line %d, column %d\0", currentToken->next->beginLine, currentToken->next->beginColumn);
+	std::string chrs{std::format("\" at line {}, column {}", currentToken->next->beginLine, currentToken->next->beginColumn)};
 	retval += chrs;
 	retval += "." + eol;
 	if (numETS == 1) {

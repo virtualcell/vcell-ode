@@ -525,9 +525,7 @@ void ExpressionParserTokenManager::ReInit(SimpleCharStream* stream, int lexState
 void ExpressionParserTokenManager::SwitchTo(int lexState)
 {
 	if (lexState >= 1 || lexState < 0) {
-		char ex[20];
-		sprintf(ex, "%d\0", lexState);
-		throw RuntimeException("Error: Ignoring invalid lexical state: " + std::string(ex) + ".State unchanged.");
+		throw RuntimeException("Error: Ignoring invalid lexical state: " + std::to_string(lexState) + ".State unchanged.");
 	}
 	else
 		curLexState = lexState;
@@ -609,16 +607,17 @@ Token* ExpressionParserTokenManager::getNextToken(void)
 			input_stream->backup(1);
 			error_after = curPos <= 1 ? "" : input_stream->GetImage();
 		}
-		char chrs[1000];
+
+		std::string errMsg;
 		if (EOFSeen)
-			sprintf(chrs, "Lexical error at line %d, column %d.  Encountered:  <EOF>\0", error_line, error_column);
+			errMsg = std::format("Lexical error at line {}, column {}.  Encountered:  <EOF>", error_line, error_column);
 		else  {
 			std::string a = Exception::add_escapes(std::string(&curChar, 1));
 			std::string b = Exception::add_escapes(error_after);
-			sprintf(chrs, "Lexical error at line %d, column %d.  Encountered: \"%s\" (%d) after : \"%s\"\0", error_line, error_column, a.c_str(), curChar, b.c_str());
+			errMsg = std::format("Lexical error at line {}, column {}.  Encountered: \"{}\" ({}) after : \"{}\"", error_line, error_column, a.c_str(), curChar, b.c_str());
 		}
 
-		throw RuntimeException(chrs);
+		throw RuntimeException(errMsg);
 	}
 EOFLoop :
 	return 0;

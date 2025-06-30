@@ -1,6 +1,9 @@
 #include <cstdio>
 
 #include "ASTIdNode.h"
+
+#include <format>
+
 #include "ExpressionException.h"
 #include "ExpressionBindingException.h"
 #include "RuntimeException.h"
@@ -46,9 +49,7 @@ std::string ASTIdNode::infixString(int lang, NameScope* nameScope)
         return cbit.util.TokenMangler.getEscapedTokenJSCL(idName);
     } else {        
 	*/
-		char chrs[20];
-		sprintf(chrs, "%d\0", lang);
-		throw RuntimeException(std::string("Lanaguage '") + chrs + " not supported");
+		throw RuntimeException(std::format("Lanaguage '{}' not supported", lang));
 	
 	}	
 }
