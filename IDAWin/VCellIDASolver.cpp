@@ -9,20 +9,16 @@
 #include <FunctionRangeException.h>
 #include <sys/timeb.h>
 #include <sstream>
-
-
-#ifdef USE_MESSAGING
-#include <VCELL/SimulationMessaging.h>
-#endif
-
 #include <cassert>
 #include <string>
 #include <ida/ida.h>
 #include <ida/ida_dense.h>
 //#include <ida/ida_spgmr.h>
 #include <nvector/nvector_serial.h>
-
 #include <memory.h>
+#ifdef USE_MESSAGING
+#include <VCELL/SimulationMessaging.h>
+#endif
 
 /**
   * calling sequence
@@ -214,7 +210,7 @@ VCellIDASolver::~VCellIDASolver() {
 	N_VDestroy_Serial(yp);
 	N_VDestroy_Serial(id);	
 
-	for (int i = 0; i < NEQ; i ++) {
+	for (int i = 0; i < NUM_EQUATIONS; i ++) {
 		delete rhsExpressions[i];
 		delete[] transformMatrix[i];
 		delete[] inverseTransformMatrix[i];
@@ -305,7 +301,7 @@ void VCellIDASolver::readEquations(std::istream& inputstream) {
 		if (token != "VAR"){
 			throw "expecting VAR";
 		}
-		for (int i = 0; i < NEQ; i ++) {
+		for (int i = 0; i < NUM_EQUATIONS; i ++) {
 			// consume "VAR" token, but first line has it's "VAR" already consumed
 			if (i > 0){
 				inputstream >> token;
@@ -323,28 +319,28 @@ void VCellIDASolver::readEquations(std::istream& inputstream) {
 		}
 
 		//TRANSFORM
-		transformMatrix = new double*[NEQ];	
+		transformMatrix = new double*[NUM_EQUATIONS];
 		inputstream >> token; 
 		if (token != "TRANSFORM") {
 			throw "expecting TRANSFORM";
 		}
 		getline(inputstream, exp); // go to next line
-		for (int i = 0; i < NEQ; i ++) {
-			transformMatrix[i] = new double[NEQ];
-			for (int j = 0; j < NEQ; j ++) {
+		for (int i = 0; i < NUM_EQUATIONS; i ++) {
+			transformMatrix[i] = new double[NUM_EQUATIONS];
+			for (int j = 0; j < NUM_EQUATIONS; j ++) {
 				inputstream >> transformMatrix[i][j];
 			}
 		}
 		//INVERSETRANSFORM
-		inverseTransformMatrix = new double*[NEQ];
+		inverseTransformMatrix = new double*[NUM_EQUATIONS];
 		inputstream >> token; 
 		if (token != "INVERSETRANSFORM") {
 			throw "expecting INVERSETRANSFORM";
 		}
 		getline(inputstream, exp); // go to next line
-		for (int i = 0; i < NEQ; i ++) {
-			inverseTransformMatrix[i] = new double[NEQ];
-			for (int j = 0; j < NEQ; j ++) {
+		for (int i = 0; i < NUM_EQUATIONS; i ++) {
+			inverseTransformMatrix[i] = new double[NUM_EQUATIONS];
+			for (int j = 0; j < NUM_EQUATIONS; j ++) {
 				inputstream >> inverseTransformMatrix[i][j];
 			}
 		}
@@ -364,13 +360,13 @@ void VCellIDASolver::readEquations(std::istream& inputstream) {
 			throw "expecting ALGEBRAIC";
 		}
 		inputstream >> numAlgebraic;
-		if (numDifferential + numAlgebraic != NEQ) {
+		if (numDifferential + numAlgebraic != NUM_EQUATIONS) {
 			throw "numDifferential + numAlgebraic != NEQ";
 		}
 		getline(inputstream, exp); // go to next line
 
-		rhsExpressions = new Expression*[NEQ];
-		for (int i = 0; i < NEQ; i ++) {
+		rhsExpressions = new Expression*[NUM_EQUATIONS];
+		for (int i = 0; i < NUM_EQUATIONS; i ++) {
 			try {
 				rhsExpressions[i] = readExpression(inputstream);
 			} catch (VCell::Exception& ex) {
@@ -388,15 +384,61 @@ void VCellIDASolver::readEquations(std::istream& inputstream) {
 	}
 }
 
+void VCellIDASolver::readEquations(VCellSolverInputBreakdown& inputBreakdown) {
+	try {
+		for (int i = 0; i < NUM_EQUATIONS; i ++) {
+			variableNames[i] = inputBreakdown.modelSettings.VARIABLE_NAMES[i];
+			try {
+				initialConditionExpressions[i] = new Expression(inputBreakdown.modelSettings.INITIAL_CONDITION_EXPRESSIONS[i]);
+			} catch (VCell::Exception& ex) {
+				throw VCell::Exception(std::string("Initial condition expression for [") + variableNames[i] + "] " + ex.getMessage());
+			}
+		}
+		transformMatrix = new double*[NUM_EQUATIONS];
+		for (int i = 0; i < NUM_EQUATIONS; i ++) {
+			transformMatrix[i] = new double[NUM_EQUATIONS];
+			for (int j = 0; j < NUM_EQUATIONS; j ++) {
+				transformMatrix[i][j] = std::stod(inputBreakdown.modelSettings.FLAT_TRANSFORM_MATRIX[i * NUM_EQUATIONS + j]);
+			}
+		}
+
+		inverseTransformMatrix = new double*[NUM_EQUATIONS];
+		for (int i = 0; i < NUM_EQUATIONS; i ++) {
+			inverseTransformMatrix[i] = new double[NUM_EQUATIONS];
+			for (int j = 0; j < NUM_EQUATIONS; j ++) {
+				inverseTransformMatrix[i][j] = std::stod(inputBreakdown.modelSettings.FLAT_INVERSE_TRANSFORM_MATRIX[i * NUM_EQUATIONS + j]);
+			}
+		}
+		numDifferential = inputBreakdown.modelSettings.NUM_DIFFERENTIAL;
+		numAlgebraic = inputBreakdown.modelSettings.NUM_ALGEBRAIC;
+		rhsExpressions = new Expression*[NUM_EQUATIONS];
+		for (int i = 0; i < NUM_EQUATIONS; i ++) {
+			try {
+				rhsExpressions[i] = new Expression(inputBreakdown.modelSettings.RATE_EXPRESSIONS[i]);
+			} catch (VCell::Exception& ex) {
+				std::stringstream ss;
+				ss << "RHS[" << i << "] " << ex.getMessage();
+				throw VCell::Exception(ss.str());
+			}
+		}
+	} catch (const char* ex) {
+		throw VCell::Exception(std::string("VCellIDASolver::readInput() : ") + ex);
+	} catch (VCell::Exception& ex) {
+		throw VCell::Exception(std::string("VCellIDASolver::readInput() : ") + ex.getMessage());
+	} catch (...) {
+		throw VCell::Exception("VCellIDASolver::readInput() caught unknown exception");
+	}
+}
+
 void VCellIDASolver::initialize() {
 	VCellSundialsSolver::initialize();
 
-	for (int i = 0; i < NEQ; i ++) {
+	for (int i = 0; i < NUM_EQUATIONS; i ++) {
 		rhsExpressions[i]->bindExpression(defaultSymbolTable);
 	}
 
-	yp = N_VNew_Serial(NEQ);
-	id = N_VNew_Serial(NEQ);
+	yp = N_VNew_Serial(NUM_EQUATIONS);
+	id = N_VNew_Serial(NUM_EQUATIONS);
 
 	if (yp == 0 || id == 0) {
 		throw "Out of Memory";
@@ -416,9 +458,9 @@ void VCellIDASolver::solve(double* paramValues, bool bPrintProgress, FILE* outpu
 
 	// copy parameter values to the end of values, these will stay the same during solving
 	// values[0] is time, y values will be copied to 1~NEQ of values in residual function
-	memset(values, 0, (NEQ + 1 + NPARAM) * sizeof(double));
-	memcpy(values + NEQ + 1, paramValues, NPARAM * sizeof(double));	
-	memset(values + 1 + NEQ + NPARAM, 0, numDiscontinuities * sizeof(double));
+	memset(values, 0, (NUM_EQUATIONS + 1 + NUM_PARAMETERS) * sizeof(double));
+	memcpy(values + NUM_EQUATIONS + 1, paramValues, NUM_PARAMETERS * sizeof(double));
+	memset(values + 1 + NUM_EQUATIONS + NUM_PARAMETERS, 0, numDiscontinuities * sizeof(double));
 
 	initIDA(paramValues);
 	idaSolve(bPrintProgress, outputFile, checkStopRequested);	
@@ -431,18 +473,18 @@ void VCellIDASolver::solve(double* paramValues, bool bPrintProgress, FILE* outpu
 
 void VCellIDASolver::initIDA(double* paramValues) {
 	// compute initial condition
-	double* initCond = new double[NEQ];
-	for (int i = 0; i < NEQ; i ++) {
+	double* initCond = new double[NUM_EQUATIONS];
+	for (int i = 0; i < NUM_EQUATIONS; i ++) {
 		initCond[i] = initialConditionExpressions[i]->evaluateVector(paramValues);
 	}
 
 	// must initialize y and yp before call IDAMalloc
 	// Initialize y, yp and id. transform initial condition to y
-	for (int i = 0; i < NEQ; i ++) {
+	for (int i = 0; i < NUM_EQUATIONS; i ++) {
 		NV_Ith_S(id, i) = i < numDifferential ? RCONST(1) : RCONST(0);
 		NV_Ith_S(yp, i) = 0; // Initialize yp  to be 0, they will be reinitialized later.
 		NV_Ith_S(y, i) = 0;		
-		for (int j = 0; j < NEQ; j ++) {
+		for (int j = 0; j < NUM_EQUATIONS; j ++) {
 			NV_Ith_S(y, i) += transformMatrix[i][j] * initCond[j];
 		}
 	}
@@ -481,7 +523,7 @@ void VCellIDASolver::reInit(double t) {
 		checkIDAFlag(flag);
 
 		// choose the linear solver (Dense "direct" matrix LU decomposition solver).
-		flag = IDADense(solver, NEQ);
+		flag = IDADense(solver, NUM_EQUATIONS);
 		//flag = IDASpgmr(solver, 0);
 		checkIDAFlag(flag);
 
@@ -507,8 +549,8 @@ bool VCellIDASolver::fixInitialDiscontinuities(double t) {
 	int flag = IDARootInit(solver, 0, RootFn_callback, this);
 	checkIDAFlag(flag);
 
-	double* oldy = new double[NEQ];
-	memcpy(oldy, NV_DATA_S(y), NEQ * sizeof(realtype));
+	double* oldy = new double[NUM_EQUATIONS];
+	memcpy(oldy, NV_DATA_S(y), NUM_EQUATIONS * sizeof(realtype));
 
 	double epsilon = std::max(1e-15, ENDING_TIME * 1e-8);
 	double currentTime = t;
@@ -530,12 +572,12 @@ bool VCellIDASolver::fixInitialDiscontinuities(double t) {
 		}
 	}
 	if (bInitChanged) {
-		memcpy(values + 1 + NEQ + NPARAM, discontinuityValues, numDiscontinuities * sizeof(double));
+		memcpy(values + 1 + NUM_EQUATIONS + NUM_PARAMETERS, discontinuityValues, numDiscontinuities * sizeof(double));
 	}
 
 	//revert y and yp
-	memcpy(NV_DATA_S(y), oldy, NEQ * sizeof(realtype));
-	memset(NV_DATA_S(yp), 0, NEQ * sizeof(realtype));
+	memcpy(NV_DATA_S(y), oldy, NUM_EQUATIONS * sizeof(realtype));
+	memset(NV_DATA_S(yp), 0, NUM_EQUATIONS * sizeof(realtype));
 	reInit(t);
 
 	flag = IDARootInit(solver, 2*numDiscontinuities, RootFn_callback, this);
@@ -622,11 +664,10 @@ void VCellIDASolver::idaSolve(bool bPrintProgress, FILE* outputFile, void (*chec
 
 				if (returnCode == IDA_ROOT_RETURN || iterationCount % keepEvery == 0 || Time >= ENDING_TIME){
 					outputCount ++;
-					if (outputCount *(NEQ + 1) * bytesPerSample > MaxFileSizeBytes){ 
-						/* if more than one gigabyte, then fail */ 
-						char msg[100];
-						sprintf(msg, "output exceeded %ld bytes\n", MaxFileSizeBytes);
-						throw VCell::Exception(msg);
+					if (outputCount *(NUM_EQUATIONS + 1) * bytesPerSample > MaxFileSizeBytes){
+						/* if more than one gigabyte, then fail */
+						std::string problem = std::format("output exceeded {} bytes\n", MaxFileSizeBytes);
+						throw VCell::Exception(problem);
 					}
 					writeData(Time, outputFile);
 					if (bPrintProgress) {
@@ -685,9 +726,9 @@ void VCellIDASolver::idaSolve(bool bPrintProgress, FILE* outputFile, void (*chec
 // override updateTempRowData, since y values need to be transformed to the original variables.
 void VCellIDASolver::updateTempRowData(double currTime) {
 	tempRowData[0] = currTime; 
-	for (int i = 0; i < NEQ; i ++) {
+	for (int i = 0; i < NUM_EQUATIONS; i ++) {
 		tempRowData[i + 1] = 0;
-		for (int j = 0; j < NEQ; j ++) {
+		for (int j = 0; j < NUM_EQUATIONS; j ++) {
 			tempRowData[i + 1] += inverseTransformMatrix[i][j] * NV_Ith_S(y, j);
 		}
 	}
@@ -695,9 +736,9 @@ void VCellIDASolver::updateTempRowData(double currTime) {
 
 void VCellIDASolver::updateTandVariableValues(realtype t, N_Vector y) {
 	values[0] = t;
-	for (int i = 0; i < NEQ; i ++) {
+	for (int i = 0; i < NUM_EQUATIONS; i ++) {
 		values[i + 1] = 0;
-		for (int j = 0; j < NEQ; j ++) {
+		for (int j = 0; j < NUM_EQUATIONS; j ++) {
 			values[i + 1] += inverseTransformMatrix[i][j] * NV_Ith_S(y, j);
 		}
 	}
