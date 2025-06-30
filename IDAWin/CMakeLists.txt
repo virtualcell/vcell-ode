@@ -1,18 +1,25 @@
 project(IDAWin)
 
 set (SRC_FILES 
-	OdeResultSet.cpp
-	StoppedByUserException.cpp	
-	VCellCVodeSolver.cpp
-	VCellIDASolver.cpp
-	VCellSundialsSolver.cpp
+		OdeResultSet.cpp
+		StoppedByUserException.cpp
+		VCellCVodeSolver.cpp
+		VCellIDASolver.cpp
+		VCellSundialsSolver.cpp
+		SteadyStateDriver.cpp
+		VCellSolverFactory.cpp
+		VCellSolverInput.cpp
 )
 set (HEADER_FILES 
-	OdeResultSet.h
-	StoppedByUserException.h	
-	VCellCVodeSolver.h
-	VCellIDASolver.h
-	VCellSundialsSolver.h
+		OdeResultSet.h
+		StoppedByUserException.h
+		VCellSolverFactory.h
+		VCellSolver.h
+		VCellSolverInput.h
+		VCellSundialsSolver.h
+		VCellCVodeSolver.h
+		VCellIDASolver.h
+        SteadyStateDriver.h
 )
 
 set (EXE_SRC_FILES

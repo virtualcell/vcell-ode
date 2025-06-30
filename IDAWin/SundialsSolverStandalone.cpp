@@ -13,6 +13,8 @@
 #include "StoppedByUserException.h"
 #include <VCELL/GitDescribe.h>
 #include <argparse/argparse.hpp>
+
+#include "VCellSolverFactory.h"
 #define CVODE_SOLVER "CVODE"
 #define IDA_SOLVER "IDA"
 
@@ -86,90 +88,47 @@ int parseAndRunWithArgParse(int argc, char *argv[]) {
 }
 
 void activateSolver(std::ifstream& inputFileStream, FILE* outputFile, int taskID) {
-	std::string solver;
+	// std::string solver;
+	//
+	// while (!inputFileStream.eof()) { // Note break statement if "SOLVER" encountered
+	// 	std::string nextToken;
+	// 	inputFileStream >> nextToken;
+	// 	if (nextToken.empty()) continue;
+	// 	if (nextToken[0] == '#') getline(inputFileStream, nextToken);
+	// 	else if (nextToken == "JMS_PARAM_BEGIN") {
+	// 		loadJMSInfo(inputFileStream, taskID);
+	// 		#ifdef USE_MESSAGING
+	// 		SimulationMessaging::getInstVar()->start(); // start the thread
+	// 		#endif
+	// 	} else if (nextToken == "SOLVER") {
+	// 		inputFileStream >> solver;
+	// 		break;
+	// 	}
+	// }
+	// #ifdef USE_MESSAGING
+	// // should only happen during testing for solver compiled with messaging but run locally.
+	// if (SimulationMessaging::getInstVar() == nullptr) { SimulationMessaging::create(); }
+	// #endif
+	//
+	// if (solver.empty()) { throw "Solver not defined "; }
+	// VCellSundialsSolver *vss = nullptr;
+	//
+	// if (solver == IDA_SOLVER) {
+	// 	vss = new VCellIDASolver();
+	// } else if (solver == CVODE_SOLVER) {
+	// 	vss = new VCellCVodeSolver();
+	// } else {
+	// 	std::stringstream ss;
+	// 	ss << "Solver " << solver << " not defined!";
+	// 	throw ss.str();
+	// }
+	//
+	// vss->solve(nullptr, true, outputFile, VCellSundialsSolver::checkStopRequested);
+	// delete vss;
 
-	while (!inputFileStream.eof()) { // Note break statement if "SOLVER" encountered
-		std::string nextToken;
-		inputFileStream >> nextToken;
-		if (nextToken.empty()) continue;
-		if (nextToken[0] == '#') getline(inputFileStream, nextToken);
-		else if (nextToken == "JMS_PARAM_BEGIN") {
-			loadJMSInfo(inputFileStream, taskID);
-			#ifdef USE_MESSAGING
-			SimulationMessaging::getInstVar()->start(); // start the thread
-			#endif
-		} else if (nextToken == "SOLVER") {
-			inputFileStream >> solver;
-			break;
-		}
-	}
-	#ifdef USE_MESSAGING
-	// should only happen during testing for solver compiled with messaging but run locally.
-	if (SimulationMessaging::getInstVar() == nullptr) { SimulationMessaging::create(); }
-	#endif
 
-	if (solver.empty()) { throw "Solver not defined "; }
-	VCellSundialsSolver *vss = nullptr;
-	if (solver == IDA_SOLVER) {
-		vss = new VCellIDASolver();
-	} else if (solver == CVODE_SOLVER) {
-		vss = new VCellCVodeSolver();
-	} else {
-		std::stringstream ss;
-		ss << "Solver " << solver << " not defined!";
-		throw ss.str();
-	}
-	vss->readInput(inputFileStream);
-	vss->solve(nullptr, true, outputFile, VCellSundialsSolver::checkStopRequested);
-
-	delete vss;
-}
-
-void loadJMSInfo(std::istream &ifsInput, int taskID) {
-	#ifndef USE_MESSAGING
-		return; // Only useful for messaging; let's not waste time!
-	#else
-
-	if (taskID < 0) {
-		SimulationMessaging::create();
-		return; // No need to do any parsing
-	}
-	std::string broker;
-	std::string smqUserName;
-	std::string password;
-	std::string qName;
-	std::string topicName;
-	std::string vCellUsername;
-	int simKey, jobIndex;
-
-	while (!ifsInput.eof()) {
-		std::string nextToken;
-		ifsInput >> nextToken;
-		if (nextToken.empty()) continue;
-		if (nextToken[0] == '#') {
-			// getline(ifsInput, nextToken); // Is this ignoring because of a comment?
-			ifsInput.ignore('\n');
-			continue;
-		}
-		if (nextToken == "JMS_PARAM_END") { ifsInput.ignore(EOF); } else if (
-			nextToken == "JMS_BROKER") { ifsInput >> broker; } else if (
-			nextToken == "JMS_USER") { ifsInput >> smqUserName >> password; } else if (
-			nextToken == "JMS_QUEUE") { ifsInput >> qName; } else if (
-			nextToken == "JMS_TOPIC") { ifsInput >> topicName; } else if (nextToken == "VCELL_USER") {
-			ifsInput >> vCellUsername;
-		} else if (nextToken == "SIMULATION_KEY") {
-			ifsInput >> simKey;
-			continue;
-		} else if (nextToken == "JOB_INDEX") {
-			ifsInput >> jobIndex;
-			continue;
-		}
-	}
-
-	SimulationMessaging::create(broker.c_str(), smqUserName.c_str(),
-	                            password.c_str(), qName.c_str(), topicName.c_str(),
-	                            vCellUsername.c_str(), simKey, jobIndex, taskID);
-	#endif
+	VCellSolver* targetSolver = VCellSolverFactory::produceVCellSolver(inputFileStream, taskID);
+	targetSolver->solve(nullptr, true, outputFile, VCellSundialsSolver::checkStopRequested);
 }
 
 void errExit(int returnCode, std::string &errorMsg) {

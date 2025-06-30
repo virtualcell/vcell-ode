@@ -1,4 +1,4 @@
-#include <SimpleSymbolTable.h>
+#include "SimpleSymbolTable.h"
 #include "StoppedByUserException.h"
 #include "VCellSundialsSolver.h"
 #include "OdeResultSet.h"
@@ -8,33 +8,21 @@
 #include <sstream>
 #include <string>
 
-
-#include <memory.h>
-
 #ifdef USE_MESSAGING
 #include <VCELL/SimulationMessaging.h>
 #endif
 
-static void trimString(std::string &str) {
-	std::string::size_type pos = str.find_last_not_of(" \r\n");
-	if (pos != std::string::npos) {
-		str.erase(pos + 1);
-		pos = str.find_first_not_of(" \r\n");
-		if (pos != std::string::npos) { str.erase(0, pos); }
-	} else { str.erase(str.begin(), str.end()); }
-}
+/** * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Local Helper Function Prototypes
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * **/
+static void trimString(std::string &str);
 
-VCell::Expression *VCellSundialsSolver::readExpression(std::istream &inputstream) {
-	std::string exp;
-	getline(inputstream, exp);
-	trimString(exp);
-	if (*(exp.end() - 1) != ';') { throw VCell::Exception(BAD_EXPRESSION_MSG); }
-	return new VCell::Expression(exp);
-}
-
+/** * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Instance Methods
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * **/
 VCellSundialsSolver::VCellSundialsSolver() {
-	NEQ = 0;
-	NPARAM = 0;
+	NUM_EQUATIONS = 0;
+	NUM_PARAMETERS = 0;
 	STARTING_TIME = 0.0;
 	ENDING_TIME = 0.0;
 	RelativeTolerance = 0.0;
@@ -70,7 +58,7 @@ VCellSundialsSolver::VCellSundialsSolver() {
 VCellSundialsSolver::~VCellSundialsSolver() {
 	N_VDestroy_Serial(y);
 
-	for (int i = 0; i < NEQ; i++) { delete initialConditionExpressions[i]; }
+	for (int i = 0; i < NUM_EQUATIONS; i++) { delete initialConditionExpressions[i]; }
 	delete[] initialConditionExpressions;
 	delete[] variableNames;
 	delete[] paramNames;
@@ -99,21 +87,21 @@ VCellSundialsSolver::~VCellSundialsSolver() {
 	eventExeList.clear();
 }
 
-void VCellSundialsSolver::updateTempRowData(double currTime) {
-	tempRowData[0] = currTime;
-	for (int i = 0; i < NEQ; i++) { tempRowData[i + 1] = NV_Ith_S(y, i); }
-}
-
 void VCellSundialsSolver::writeData(double currTime, FILE *outputFile) {
 	updateTempRowData(currTime);
 	odeResultSet->addRow(tempRowData);
 	writeFileData(outputFile);
 }
 
+void VCellSundialsSolver::updateTempRowData(double currTime) {
+	tempRowData[0] = currTime;
+	for (int i = 0; i < NUM_EQUATIONS; i++) { tempRowData[i + 1] = NV_Ith_S(y, i); }
+}
+
 void VCellSundialsSolver::writeFileData(FILE *outputFile) {
 	if (outputFile != nullptr) {
 		fprintf(outputFile, "%0.17E", tempRowData[0]);
-		for (int i = 1; i < NEQ + 1; i++) { fprintf(outputFile, "\t%0.17E", tempRowData[i]); }
+		for (int i = 1; i < NUM_EQUATIONS + 1; i++) { fprintf(outputFile, "\t%0.17E", tempRowData[i]); }
 		fprintf(outputFile, "\n");
 	}
 }
@@ -170,56 +158,121 @@ void VCellSundialsSolver::printProgress(double currTime, double &lastPercentile,
 	}
 }
 
-void VCellSundialsSolver::readInput(std::istream &inputstream) {
+// void VCellSundialsSolver::readInput(std::istream &inputFileStream) {
+// 	try {
+// 		if (solver != nullptr) { throw "readInput should only be called once"; }
+// 		while (!inputFileStream.eof()) {
+// 			std::string name;
+// 			inputFileStream >> name;
+// 			if (name.empty()) { continue; }
+// 			if (name == "SOLVER") {
+// 				inputFileStream >> name;
+// 				if (name != getSolverName()) { throw "Wrong solver"; }
+// 			} else if (name == "STARTING_TIME") { inputFileStream >> STARTING_TIME; } else if (
+// 				name == "ENDING_TIME") { inputFileStream >> ENDING_TIME; } else if (
+// 				name == "RELATIVE_TOLERANCE") { inputFileStream >> RelativeTolerance; } else if (
+// 				name == "ABSOLUTE_TOLERANCE") { inputFileStream >> AbsoluteTolerance; } else if (
+// 				name == "MAX_TIME_STEP") { inputFileStream >> maxTimeStep; } else if (name == "KEEP_EVERY") {
+// 				inputFileStream >> keepEvery;
+// 			} else if (name == "OUTPUT_TIME_STEP") {
+// 				double outputTimeStep = 0.0;
+// 				inputFileStream >> outputTimeStep;
+// 				double timePoint = 0.0;
+// 				int count = 1;
+// 				while (STARTING_TIME + count * outputTimeStep < ENDING_TIME + 1E-12 * ENDING_TIME) {
+// 					timePoint = STARTING_TIME + count * outputTimeStep;
+// 					outputTimes.push_back(timePoint);
+// 					count++;
+// 				}
+// 				ENDING_TIME = outputTimes[outputTimes.size() - 1];
+// 			} else if (name == "OUTPUT_TIMES") {
+// 				int totalNumTimePoints;
+// 				double timePoint;
+// 				inputFileStream >> totalNumTimePoints;
+// 				for (int i = 0; i < totalNumTimePoints; i++) {
+// 					inputFileStream >> timePoint;
+// 					if (timePoint > STARTING_TIME && timePoint <= ENDING_TIME) { outputTimes.push_back(timePoint); }
+// 				}
+// 				if (outputTimes[outputTimes.size() - 1] < ENDING_TIME) { outputTimes.push_back(ENDING_TIME); }
+// 			} else if (name == "DISCONTINUITIES") { readDiscontinuities(inputFileStream); }
+// 			else if (name == "NUM_PARAMETERS") {
+// 				inputFileStream >> NUM_PARAMETERS;
+// 				paramNames = new std::string[NUM_PARAMETERS];
+// 				for (int i = 0; i < NUM_PARAMETERS; i++) { inputFileStream >> paramNames[i]; }
+// 			} else if (name == "NUM_EQUATIONS") {
+// 				inputFileStream >> NUM_EQUATIONS;
+// 				variableNames = new std::string[NUM_EQUATIONS];
+// 				initialConditionExpressions = new VCell::Expression *[NUM_EQUATIONS];
+// 				readEquations(inputFileStream);
+// 			} else if (name == "EVENTS") { readEvents(inputFileStream); } else {
+// 				std::string msg = "Unexpected token \"" + name + "\" in the input file!";
+// 				throw VCell::Exception(msg);
+// 			}
+// 		}
+// 		initialize();
+// 	} catch (char *ex) { throw VCell::Exception(std::string("VCellSundialsSolver::readInput() : ") + ex); } catch (
+// 		VCell::Exception &ex) {
+// 		throw VCell::Exception(std::string("VCellSundialsSolver::readInput() : ") + ex.getMessage());
+// 	}
+// }
+
+void VCellSundialsSolver::configureFromInput(VCellSolverInputBreakdown& inputBreakdown) {
 	try {
-		if (solver != 0) { throw "readInput should only be called once"; }
-		std::string name;
-		while (!inputstream.eof()) {
-			name = "";
-			inputstream >> name;
-			if (name.empty()) { continue; }
-			if (name == "SOLVER") {
-				inputstream >> name;
-				if (name != getSolverName()) { throw "Wrong solver"; }
-			} else if (name == "STARTING_TIME") { inputstream >> STARTING_TIME; } else if (
-				name == "ENDING_TIME") { inputstream >> ENDING_TIME; } else if (
-				name == "RELATIVE_TOLERANCE") { inputstream >> RelativeTolerance; } else if (
-				name == "ABSOLUTE_TOLERANCE") { inputstream >> AbsoluteTolerance; } else if (
-				name == "MAX_TIME_STEP") { inputstream >> maxTimeStep; } else if (name == "KEEP_EVERY") {
-				inputstream >> keepEvery;
-			} else if (name == "OUTPUT_TIME_STEP") {
-				double outputTimeStep = 0.0;
-				inputstream >> outputTimeStep;
-				double timePoint = 0.0;
-				int count = 1;
-				while (STARTING_TIME + count * outputTimeStep < ENDING_TIME + 1E-12 * ENDING_TIME) {
-					timePoint = STARTING_TIME + count * outputTimeStep;
-					outputTimes.push_back(timePoint);
-					count++;
-				}
-				ENDING_TIME = outputTimes[outputTimes.size() - 1];
-			} else if (name == "OUTPUT_TIMES") {
-				int totalNumTimePoints;
-				double timePoint;
-				inputstream >> totalNumTimePoints;
-				for (int i = 0; i < totalNumTimePoints; i++) {
-					inputstream >> timePoint;
-					if (timePoint > STARTING_TIME && timePoint <= ENDING_TIME) { outputTimes.push_back(timePoint); }
-				}
-				if (outputTimes[outputTimes.size() - 1] < ENDING_TIME) { outputTimes.push_back(ENDING_TIME); }
-			} else if (name == "DISCONTINUITIES") { readDiscontinuities(inputstream); } else if (
-				name == "NUM_PARAMETERS") {
-				inputstream >> NPARAM;
-				paramNames = new std::string[NPARAM];
-				for (int i = 0; i < NPARAM; i++) { inputstream >> paramNames[i]; }
-			} else if (name == "NUM_EQUATIONS") {
-				inputstream >> NEQ;
-				variableNames = new std::string[NEQ];
-				initialConditionExpressions = new VCell::Expression *[NEQ];
-				readEquations(inputstream);
-			} else if (name == "EVENTS") { readEvents(inputstream); } else {
-				std::string msg = "Unexpected token \"" + name + "\" in the input file!";
-				throw VCell::Exception(msg);
+		if (solver != nullptr) { throw "readInput should only be called once"; }
+		if (inputBreakdown.solverType != getSolverType()) throw VCell::Exception("Fatal Error: Solver mismatch detected!");
+		STARTING_TIME = inputBreakdown.timeCourseSettings.STARTING_TIME;
+		ENDING_TIME = inputBreakdown.timeCourseSettings.ENDING_TIME;
+		RelativeTolerance = inputBreakdown.timeCourseSettings.RELATIVE_TOLERANCE;
+		AbsoluteTolerance = inputBreakdown.timeCourseSettings.ABSOLUTE_TOLERANCE;
+		maxTimeStep = inputBreakdown.timeCourseSettings.MAX_TIME_STEP;
+		keepEvery = inputBreakdown.timeCourseSettings.KEEP_EVERY;
+		///TODO: replace "1e-12" with "SMALL_REAL" constant? Probably need to change outputTimes to `std::vector<realtype>`
+		if (inputBreakdown.timeCourseSettings.OUTPUT_TIME_STEP != 0.0){
+			for (int count = 1; STARTING_TIME + count * inputBreakdown.timeCourseSettings.OUTPUT_TIME_STEP < ENDING_TIME + 1E-12 * ENDING_TIME; count++)
+				outputTimes.push_back(STARTING_TIME + count * inputBreakdown.timeCourseSettings.OUTPUT_TIME_STEP);
+			ENDING_TIME = outputTimes.back();
+		} else if (!inputBreakdown.timeCourseSettings.TIME_POINTS.empty()) {
+			for (auto elem : inputBreakdown.timeCourseSettings.TIME_POINTS) outputTimes.push_back(elem);
+		}
+		numDiscontinuities = inputBreakdown.discontinuitiesSettings.DISCONTINUITIES.size();
+		odeDiscontinuities = new OdeDiscontinuity*[numDiscontinuities];
+		for (int i = 0; i < numDiscontinuities; i++) {
+			odeDiscontinuities[i] = new OdeDiscontinuity();
+			odeDiscontinuities[i]->discontinuitySymbol = inputBreakdown.discontinuitiesSettings.DISCONTINUITIES[i].symbol;
+			odeDiscontinuities[i]->discontinuityExpression = inputBreakdown.discontinuitiesSettings.DISCONTINUITIES[i].discontinuityExpression;
+			odeDiscontinuities[i]->rootFindingExpression = inputBreakdown.discontinuitiesSettings.DISCONTINUITIES[i].rootFindingExpression;
+		}
+		NUM_PARAMETERS = inputBreakdown.modelSettings.PARAMETER_NAMES.size();
+		paramNames = new std::string[NUM_PARAMETERS];
+		for (int i = 0; i < NUM_PARAMETERS; i++) {paramNames[i] = inputBreakdown.modelSettings.PARAMETER_NAMES[i];}
+		NUM_EQUATIONS = inputBreakdown.modelSettings.VARIABLE_NAMES.size();
+		variableNames = new std::string[NUM_EQUATIONS];
+		initialConditionExpressions = new VCell::Expression*[NUM_EQUATIONS];
+		readEquations(inputBreakdown);
+		numEvents = inputBreakdown.eventSettings.EVENTS.size();
+		events = new Event*[numEvents];
+		for (int i = 0; i < inputBreakdown.eventSettings.EVENTS.size(); i++) {
+			events[i] = new Event();
+			events[i]->name = inputBreakdown.eventSettings.EVENTS[i].eventName;
+			events[i]->bUseValuesAtTriggerTime = inputBreakdown.eventSettings.EVENTS[i].shouldUseValuesAtTriggerTime;
+			try {
+				events[i]->triggerExpression = new VCell::Expression(inputBreakdown.eventSettings.EVENTS[i].triggerExpression);
+			} catch (VCell::Exception &ex) {
+				throw VCell::Exception(std::string("trigger expression") + " " + ex.getMessage());
+			}
+
+			try {
+				if (!inputBreakdown.eventSettings.EVENTS[i].delayDurationExpression.empty())
+					events[i]->delayDurationExpression = new VCell::Expression(inputBreakdown.eventSettings.EVENTS[i].delayDurationExpression);
+			}  catch (VCell::Exception &ex) {
+				throw VCell::Exception(std::string("delay duration expression") + " " + ex.getMessage());
+			}
+
+			for (auto [varIndex, assignmentExpression]: inputBreakdown.eventSettings.EVENTS[i].eventAssignments) {
+				EventAssignment* eventAssignment = new EventAssignment();
+				eventAssignment->varIndex = varIndex;
+				eventAssignment->assignmentExpression = new VCell::Expression(assignmentExpression);
+				events[i]->eventAssignmentsVec->emplace_back(eventAssignment);
 			}
 		}
 		initialize();
@@ -229,59 +282,58 @@ void VCellSundialsSolver::readInput(std::istream &inputstream) {
 	}
 }
 
-void VCellSundialsSolver::readEvents(std::istream &inputstream) {
-	std::string token;
-
-	inputstream >> numEvents;
-	events = new Event *[numEvents];
-	for (int i = 0; i < numEvents; i++) {
-		events[i] = new Event();
-		while (true) { // Break on "EVENTASSIGNMENTS"
-			inputstream >> token;
-			if (token == "EVENT") { inputstream >> events[i]->name; } else if (token == "TRIGGER") {
-				try { events[i]->triggerExpression = readExpression(inputstream); } catch (VCell::Exception &ex) {
-					throw VCell::Exception(std::string("trigger expression") + " " + ex.getMessage());
-				}
-			} else if (token == "DELAY") {
-				inputstream >> token;
-				events[i]->bUseValuesAtTriggerTime = token == "true";
-				try { events[i]->delayDurationExpression = readExpression(inputstream); } catch (VCell::Exception &ex) {
-					throw VCell::Exception(std::string("delay duration expression") + " " + ex.getMessage());
-				}
-			} else if (token == "EVENTASSIGNMENTS") {
-				int numEventAssignments;
-				inputstream >> numEventAssignments;
-				for (int j = 0; j < numEventAssignments; j++) {
-					EventAssignment *ea = new EventAssignment();
-					inputstream >> ea->varIndex;
-					try { ea->assignmentExpression = readExpression(inputstream); } catch (VCell::Exception &ex) {
-						throw VCell::Exception(std::string("event assignment expression") + " " + ex.getMessage());
-					}
-					events[i]->eventAssignmentsVec->push_back(ea);
-				}
-				break;
-			} else { throw VCell::Exception("Unexpected token \"" + token + "\" in the input file!"); }
-		}
-	}
-}
+// void VCellSundialsSolver::readEvents(std::istream &inputstream) {
+// 	std::string token;
+//
+// 	inputstream >> numEvents;
+// 	events = new Event *[numEvents];
+// 	for (int i = 0; i < numEvents; i++) {
+// 		events[i] = new Event();
+//
+// 		while (true) { // Break on "EVENTASSIGNMENTS"
+// 			inputstream >> token;
+// 			if (token == "EVENT") { inputstream >> events[i]->name; } else if (token == "TRIGGER") {
+// 				try { events[i]->triggerExpression = readExpression(inputstream); } catch (VCell::Exception &ex) {
+// 					throw VCell::Exception(std::string("trigger expression") + " " + ex.getMessage());
+// 				}
+// 			} else if (token == "DELAY") {
+// 				inputstream >> token;
+// 				events[i]->bUseValuesAtTriggerTime = token == "true";
+// 				try { events[i]->delayDurationExpression = readExpression(inputstream); } catch (VCell::Exception &ex) {
+// 					throw VCell::Exception(std::string("delay duration expression") + " " + ex.getMessage());
+// 				}
+// 			} else if (token == "EVENTASSIGNMENTS") {
+// 				int numEventAssignments;
+// 				inputstream >> numEventAssignments;
+// 				for (int j = 0; j < numEventAssignments; j++) {
+// 					EventAssignment *ea = new EventAssignment();
+// 					inputstream >> ea->varIndex;
+// 					try { ea->assignmentExpression = readExpression(inputstream); } catch (VCell::Exception &ex) {
+// 						throw VCell::Exception(std::string("event assignment expression") + " " + ex.getMessage());
+// 					}
+// 					events[i]->eventAssignmentsVec->push_back(ea);
+// 				}
+// 				break;
+// 			} else { throw VCell::Exception("Unexpected token \"" + token + "\" in the input file!"); }
+// 		}
+// 	}
+// }
 
 void VCellSundialsSolver::readDiscontinuities(std::istream &inputstream) {
 	inputstream >> numDiscontinuities;
 	odeDiscontinuities = new OdeDiscontinuity *[numDiscontinuities];
-	std::string line;
-	std::string exp;
 	for (int i = 0; i < numDiscontinuities; i++) {
 		OdeDiscontinuity *od = new OdeDiscontinuity;
 		inputstream >> od->discontinuitySymbol;
 
-		line = "";
+		std::string line = "";
 		getline(inputstream, line);
 		std::string::size_type pos = line.find(";");
 		if (pos == std::string::npos) {
 			std::string msg = std::string("discontinuity expression ") + BAD_EXPRESSION_MSG;
 			throw VCell::Exception(msg);
 		}
-		exp = line.substr(0, pos + 1);
+		std::string exp = line.substr(0, pos + 1);
 		trimString(exp);
 		od->discontinuityExpression = new VCell::Expression(exp);
 
@@ -299,35 +351,35 @@ void VCellSundialsSolver::readDiscontinuities(std::istream &inputstream) {
 
 void VCellSundialsSolver::initialize() {
 	// add parameters to symbol table
-	numAllSymbols = 1 + NEQ + NPARAM + numDiscontinuities;
+	numAllSymbols = 1 + NUM_EQUATIONS + NUM_PARAMETERS + numDiscontinuities;
 	allSymbols = new std::string[numAllSymbols]; // t, variables, parameters, discontinuities
 
 	//t
 	allSymbols[0] = "t";
 	odeResultSet->addColumn("t");
 	// variables
-	for (int i = 0; i < NEQ; i++) {
+	for (int i = 0; i < NUM_EQUATIONS; i++) {
 		allSymbols[1 + i] = variableNames[i];
 		odeResultSet->addColumn(variableNames[i]);
 	}
 	// parameters
-	for (int i = 0; i < NPARAM; i++) { allSymbols[1 + NEQ + i] = paramNames[i]; }
+	for (int i = 0; i < NUM_PARAMETERS; i++) { allSymbols[1 + NUM_EQUATIONS + i] = paramNames[i]; }
 	//discontinuities
 	for (int i = 0; i < numDiscontinuities; i++) {
-		allSymbols[1 + NEQ + NPARAM + i] = odeDiscontinuities[i]->discontinuitySymbol;
+		allSymbols[1 + NUM_EQUATIONS + NUM_PARAMETERS + i] = odeDiscontinuities[i]->discontinuitySymbol;
 	}
 	// default symbol table has variables, parameters and discontinuities.
 	defaultSymbolTable = new SimpleSymbolTable(allSymbols, numAllSymbols);
 
 	// initial condition can only be function of parameters.
-	initialConditionSymbolTable = new SimpleSymbolTable(allSymbols + 1 + NEQ, NPARAM);
-	for (int i = 0; i < NEQ; i++) { initialConditionExpressions[i]->bindExpression(initialConditionSymbolTable); }
+	initialConditionSymbolTable = new SimpleSymbolTable(allSymbols + 1 + NUM_EQUATIONS, NUM_PARAMETERS);
+	for (int i = 0; i < NUM_EQUATIONS; i++) { initialConditionExpressions[i]->bindExpression(initialConditionSymbolTable); }
 
 	if (numDiscontinuities > 0) {
 		rootsFound = new int[2 * numDiscontinuities];
 		discontinuityValues = new double[numDiscontinuities];
 		// discontinuities can't be function of discontinuity symbols
-		discontinuitySymbolTable = new SimpleSymbolTable(allSymbols, 1 + NEQ + NPARAM);
+		discontinuitySymbolTable = new SimpleSymbolTable(allSymbols, 1 + NUM_EQUATIONS + NUM_PARAMETERS);
 		for (int i = 0; i < numDiscontinuities; i++) {
 			odeDiscontinuities[i]->discontinuityExpression->bindExpression(discontinuitySymbolTable);
 			odeDiscontinuities[i]->rootFindingExpression->bindExpression(discontinuitySymbolTable);
@@ -335,10 +387,10 @@ void VCellSundialsSolver::initialize() {
 	}
 
 	if (numEvents > 0) { for (int i = 0; i < numEvents; i++) { events[i]->bind(defaultSymbolTable); } }
-	values = new realtype[1 + NEQ + NPARAM + numDiscontinuities];
-	tempRowData = new realtype[1 + NEQ];
+	values = new realtype[1 + NUM_EQUATIONS + NUM_PARAMETERS + numDiscontinuities];
+	tempRowData = new realtype[1 + NUM_EQUATIONS];
 
-	y = N_VNew_Serial(NEQ);
+	y = N_VNew_Serial(NUM_EQUATIONS);
 	if (y == nullptr) { throw "Out of Memory"; }
 }
 
@@ -373,7 +425,7 @@ bool VCellSundialsSolver::updateDiscontinuities(realtype t, bool bOnRootReturn) 
 	std::cout << std::endl;
 
 	// copy discontinuity values to values to evaluate RHS
-	if (bUpdated) { memcpy(values + 1 + NEQ + NPARAM, discontinuityValues, numDiscontinuities * sizeof(double)); }
+	if (bUpdated) { memcpy(values + 1 + NUM_EQUATIONS + NUM_PARAMETERS, discontinuityValues, numDiscontinuities * sizeof(double)); }
 	return bUpdated;
 }
 
@@ -386,7 +438,7 @@ void VCellSundialsSolver::initDiscontinuities() {
 		discontinuityValues[i] = odeDiscontinuities[i]->discontinuityExpression->evaluateVector(values);
 	}
 	// copy discontinuity values to values to evaluate RHS
-	memcpy(values + 1 + NEQ + NPARAM, discontinuityValues, numDiscontinuities * sizeof(double));
+	memcpy(values + 1 + NUM_EQUATIONS + NUM_PARAMETERS, discontinuityValues, numDiscontinuities * sizeof(double));
 }
 
 void VCellSundialsSolver::checkDiscontinuityConsistency() const {
@@ -447,7 +499,7 @@ void VCellSundialsSolver::printVariableValues(realtype t) {
 	updateTandVariableValues(t, y);
 	std::cout << "variable values are" << std::endl;
 	std::cout << "t " << values[0] << std::endl;
-	for (int i = 0; i < NEQ; i++) { std::cout << variableNames[i] << " " << values[i + 1] << std::endl; }
+	for (int i = 0; i < NUM_EQUATIONS; i++) { std::cout << variableNames[i] << " " << values[i + 1] << std::endl; }
 	std::cout << std::endl;
 }
 
@@ -563,4 +615,28 @@ void VCellSundialsSolver::checkStopRequested(double time, long numIterations) {
 	#ifdef USE_MESSAGING
 	if (SimulationMessaging::getInstVar()->isStopRequested()) { throw StoppedByUserException("stopped by user"); }
 	#endif
+}
+
+/** * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Static Methods
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * **/
+
+VCell::Expression *VCellSundialsSolver::readExpression(std::istream &inputstream) {
+	std::string exp;
+	getline(inputstream, exp);
+	trimString(exp);
+	if (*(exp.end() - 1) != ';') { throw VCell::Exception(BAD_EXPRESSION_MSG); }
+	return new VCell::Expression(exp);
+}
+
+/** * * * * * * * * * * * * * * * * * * * * * * * * * * *
+ * Local Helper Functions
+ * * * * * * * * * * * * * * * * * * * * * * * * * * * **/
+static void trimString(std::string &str) {
+	std::string::size_type pos = str.find_last_not_of(" \r\n");
+	if (pos != std::string::npos) {
+		str.erase(pos + 1);
+		pos = str.find_first_not_of(" \r\n");
+		if (pos != std::string::npos) { str.erase(0, pos); }
+	} else { str.erase(str.begin(), str.end()); }
 }

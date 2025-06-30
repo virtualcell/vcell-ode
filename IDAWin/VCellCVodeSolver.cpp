@@ -9,20 +9,16 @@
 #include <sys/timeb.h>
 #include <sstream>
 #include <string>
-
-#ifdef USE_MESSAGING
-#include <VCELL/SimulationMessaging.h>
-#endif
-
 #include <memory.h>
-
 #include <cvode/cvode.h>             /* prototypes for CVODE fcts. and consts. */
 #include <nvector/nvector_serial.h>  /* serial N_Vector types, fcts., and macros */
 #include <cvode/cvode_dense.h>       /* prototype for CVDense */
 //#include <cvode/cvode_spgmr.h>       /* prototype for CVSPGMR */
 #include <sundials/sundials_dense.h> /* definitions DenseMat DENSE_ELEM */
 #include <sundials/sundials_types.h> /* definition of type realtype */
-
+#ifdef USE_MESSAGING
+#include <VCELL/SimulationMessaging.h>
+#endif
 #define ToleranceType CV_SS
 
 /**
@@ -151,13 +147,13 @@ VCellCVodeSolver::VCellCVodeSolver() : VCellSundialsSolver() {
 VCellCVodeSolver::~VCellCVodeSolver() {
 	CVodeFree(&solver);
 
-	for (int i = 0; i < NEQ; i ++) {
+	for (int i = 0; i < NUM_EQUATIONS; i ++) {
 		delete rateExpressions[i];
 	}
 	delete[] rateExpressions;
 }
 
-/*
+/**----------------------------------------------------
 Input format:
 	STARTING_TIME 0.0
 	ENDING_TIME 0.1
@@ -172,15 +168,15 @@ Input format:
 		 RATE ((20.0 * x_o * D_B0) - (50.0 * x_i));
 	ODE x_o INIT 0.0;
 		 RATE ( - ((20.0 * x_o * D_B0) - (50.0 * x_i)) + (1505000.0 * (3.322259136212625E-4 - (3.322259136212625E-4 * x_o) - (3.322259136212625E-4 * x_i))) - (100.0 * x_o));
-*/
+--------------------------------------------------------------*/
 void VCellCVodeSolver::readEquations(std::istream& inputstream) {
 	try {
 		std::string name;
 		std::string exp;
 		
-		rateExpressions = new Expression*[NEQ];		
+		rateExpressions = new Expression*[NUM_EQUATIONS];
 
-		for (int i = 0; i < NEQ; i ++) {
+		for (int i = 0; i < NUM_EQUATIONS; i ++) {
 			// ODE
 			inputstream >> name >> variableNames[i];			
 
@@ -209,11 +205,35 @@ void VCellCVodeSolver::readEquations(std::istream& inputstream) {
 	}
 }
 
+void VCellCVodeSolver::readEquations(VCellSolverInputBreakdown& inputBreakdown) {
+	try {
+		for (int i = 0; i < NUM_EQUATIONS; i ++) {
+			variableNames[i] = inputBreakdown.modelSettings.VARIABLE_NAMES[i];
+			try {
+				initialConditionExpressions[i] = new Expression(inputBreakdown.modelSettings.INITIAL_CONDITION_EXPRESSIONS[i]);
+			} catch (VCell::Exception& ex) {
+				throw VCell::Exception(std::string("Initial condition expression for [") + variableNames[i] + "] " + ex.getMessage());
+			}
+		}
+
+		rateExpressions = new Expression*[inputBreakdown.modelSettings.RATE_EXPRESSIONS.size()];
+		for (int i = 0; i < inputBreakdown.modelSettings.RATE_EXPRESSIONS.size(); i++) {
+			rateExpressions[i] = new Expression(inputBreakdown.modelSettings.RATE_EXPRESSIONS[i]);
+		}
+	} catch (char* ex) {
+		throw VCell::Exception(std::string("VCellCVodeSolver::readInput() : ") + ex);
+	} catch (VCell::Exception& ex) {
+		throw VCell::Exception(std::string("VCellCVodeSolver::readInput() : ") + ex.getMessage());
+	} catch (...) {
+		throw "VCellCVodeSolver::readInput() : caught unknown exception";
+	}
+}
+
 void VCellCVodeSolver::initialize() {
 	VCellSundialsSolver::initialize();
 
 	// rate can be function of variables, parameters and discontinuities.
-	for (int i = 0; i < NEQ; i ++) {
+	for (int i = 0; i < NUM_EQUATIONS; i ++) {
 		rateExpressions[i]->bindExpression(defaultSymbolTable);
 	}
 }
@@ -222,7 +242,7 @@ int VCellCVodeSolver::RHS (realtype t, N_Vector y, N_Vector r) {
 	try {
 		updateTandVariableValues(t, y);
 		double* r_data = NV_DATA_S(r);
-		for (int i = 0; i < NEQ; i ++) {
+		for (int i = 0; i < NUM_EQUATIONS; i ++) {
 			r_data[i] = rateExpressions[i]->evaluateVector(values);
 		}
 		recoverableErrMsg = "";
@@ -264,9 +284,9 @@ void VCellCVodeSolver::solve(double* paramValues, bool bPrintProgress, FILE* out
 	this->odeResultSet->clearData();
 
 	// copy parameter values to the end of values, these will stay the same during solving
-	memset(values, 0, (NEQ + 1) * sizeof(double));
-	memcpy(values + 1 + NEQ, paramValues, NPARAM * sizeof(double));
-	memset(values + 1 + NEQ + NPARAM, 0, numDiscontinuities * sizeof(double));
+	memset(values, 0, (NUM_EQUATIONS + 1) * sizeof(double));
+	memcpy(values + 1 + NUM_EQUATIONS, paramValues, NUM_PARAMETERS * sizeof(double));
+	memset(values + 1 + NUM_EQUATIONS + NUM_PARAMETERS, 0, numDiscontinuities * sizeof(double));
 
 	initCVode(paramValues);
 	cvodeSolve(bPrintProgress, outputFile, checkStopRequested);
@@ -274,7 +294,7 @@ void VCellCVodeSolver::solve(double* paramValues, bool bPrintProgress, FILE* out
 
 void VCellCVodeSolver::initCVode(double* paramValues) {
 	//Initialize y, variable portion of values
-	for (int i = 0; i < NEQ; i ++) {
+	for (int i = 0; i < NUM_EQUATIONS; i ++) {
 		NV_Ith_S(y, i) = initialConditionExpressions[i]->evaluateVector(paramValues);
 	}
 
@@ -305,7 +325,7 @@ void VCellCVodeSolver::reInit(double t) {
 
 		flag = CVodeSetFdata(solver, this);
 		checkCVodeFlag(flag);
-		flag = CVDense(solver, NEQ);
+		flag = CVDense(solver, NUM_EQUATIONS);
 		//flag = CVSpgmr(solver, PREC_NONE, 0);
 		checkCVodeFlag(flag);
 
@@ -317,8 +337,8 @@ void VCellCVodeSolver::reInit(double t) {
 }
 
 bool VCellCVodeSolver::fixInitialDiscontinuities(double t) {
-	double* oldy = new double[NEQ];
-	memcpy(oldy, NV_DATA_S(y), NEQ * sizeof(realtype));
+	double* oldy = new double[NUM_EQUATIONS];
+	memcpy(oldy, NV_DATA_S(y), NUM_EQUATIONS * sizeof(realtype));
 
 	double epsilon = std::max(1e-15, ENDING_TIME * 1e-10);
 	double currentTime = t;	
@@ -341,11 +361,11 @@ bool VCellCVodeSolver::fixInitialDiscontinuities(double t) {
 		}
 	}	
 	if (bInitChanged) {
-		memcpy(values + 1 + NEQ + NPARAM, discontinuityValues, numDiscontinuities * sizeof(double));
+		memcpy(values + 1 + NUM_EQUATIONS + NUM_PARAMETERS, discontinuityValues, numDiscontinuities * sizeof(double));
 	}
 
 	//revert y
-	memcpy(NV_DATA_S(y), oldy, NEQ * sizeof(realtype));
+	memcpy(NV_DATA_S(y), oldy, NUM_EQUATIONS * sizeof(realtype));
 	reInit(t);
 
 	delete[] oldy;
@@ -427,7 +447,7 @@ void VCellCVodeSolver::cvodeSolve(bool bPrintProgress, FILE* outputFile, void (*
 
 				if (returnCode == CV_ROOT_RETURN || iterationCount % keepEvery == 0 || Time >= ENDING_TIME){
 					outputCount++;
-					if (outputCount * (NEQ + 1) * bytesPerSample > MaxFileSizeBytes){ 
+					if (outputCount * (NUM_EQUATIONS + 1) * bytesPerSample > MaxFileSizeBytes){
 						/* if more than one gigabyte, then fail */
 						const std::string msg{"output exceeded maximum " + std::to_string(MaxFileSizeBytes) + " bytes"};
 						throw VCell::Exception(msg.c_str());
@@ -487,5 +507,5 @@ void VCellCVodeSolver::cvodeSolve(bool bPrintProgress, FILE* outputFile, void (*
 
 void VCellCVodeSolver::updateTandVariableValues(realtype t, N_Vector y) {
 	values[0] = t;
-	memcpy(values + 1, NV_DATA_S(y), NEQ * sizeof(realtype));
+	memcpy(values + 1, NV_DATA_S(y), NUM_EQUATIONS * sizeof(realtype));
 }
