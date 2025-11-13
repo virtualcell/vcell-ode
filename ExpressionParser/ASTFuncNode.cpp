@@ -2,10 +2,9 @@
 
 #include <math.h>
 #include <algorithm>
-
+#include <format>
 
 #include "ASTFuncNode.h"
-#include <format>
 #include "RuntimeException.h"
 #include "ExpressionException.h"
 #include "MathUtil.h"
