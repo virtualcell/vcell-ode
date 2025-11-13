@@ -33,13 +33,13 @@ class VCellSundialsSolver : public VCellSolver {
 
 		void configureFromInput(VCellSolverInputBreakdown& inputBreakdown) override;
 
-		OdeResultSet *getResultSet() const { return this->odeResultSet; }
+		[[nodiscard]] OdeResultSet *getResultSet() const { return this->odeResultSet; }
 		[[nodiscard]] int getNumEquations() const { return this->NUM_EQUATIONS; }
-		VCell::Expression **getInitialConditionExpressions() const { return this->initialConditionExpressions; }
+		[[nodiscard]] VCell::Expression **getInitialConditionExpressions() const { return this->initialConditionExpressions; }
 		void setStartingTime(const realtype newStartingTime) { this->STARTING_TIME = newStartingTime; }
 		void setEndingTime(const realtype newEndingTime) { this->ENDING_TIME = newEndingTime; }
 		//void setOutputTimes(int count, double* newOutputTimes);
-		SymbolTable *getSymbolTable() const { return this->defaultSymbolTable; }
+		[[nodiscard]] SymbolTable *getSymbolTable() const { return this->defaultSymbolTable; }
 
 		static void checkStopRequested(double, long);
 

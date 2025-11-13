@@ -8,19 +8,16 @@
 #include <fstream>
 #include <sstream>
 // Local Includes
-#include "VCellCVodeSolver.h"
-#include "VCellIDASolver.h"
+#include "SundialsSolverInterface.h"
+
 #include "StoppedByUserException.h"
 #include <VCELL/GitDescribe.h>
 #include <argparse/argparse.hpp>
 
-#include "VCellSolverFactory.h"
 #define CVODE_SOLVER "CVODE"
 #define IDA_SOLVER "IDA"
 
 int parseAndRunWithArgParse(int argc, char *argv[]);
-void activateSolver(std::ifstream& inputFileStream, FILE* outputFile, int taskID);
-void loadJMSInfo(std::istream &ifsInput, int taskID);
 void errExit(int returnCode, std::string &errorMsg);
 
 int main(int argc, char *argv[]) {
@@ -85,50 +82,6 @@ int parseAndRunWithArgParse(int argc, char *argv[]) {
 	if (inputFileStream.is_open()) { inputFileStream.close(); }
 	errExit(returnCode, errMsg);
 	return returnCode;
-}
-
-void activateSolver(std::ifstream& inputFileStream, FILE* outputFile, int taskID) {
-	// std::string solver;
-	//
-	// while (!inputFileStream.eof()) { // Note break statement if "SOLVER" encountered
-	// 	std::string nextToken;
-	// 	inputFileStream >> nextToken;
-	// 	if (nextToken.empty()) continue;
-	// 	if (nextToken[0] == '#') getline(inputFileStream, nextToken);
-	// 	else if (nextToken == "JMS_PARAM_BEGIN") {
-	// 		loadJMSInfo(inputFileStream, taskID);
-	// 		#ifdef USE_MESSAGING
-	// 		SimulationMessaging::getInstVar()->start(); // start the thread
-	// 		#endif
-	// 	} else if (nextToken == "SOLVER") {
-	// 		inputFileStream >> solver;
-	// 		break;
-	// 	}
-	// }
-	// #ifdef USE_MESSAGING
-	// // should only happen during testing for solver compiled with messaging but run locally.
-	// if (SimulationMessaging::getInstVar() == nullptr) { SimulationMessaging::create(); }
-	// #endif
-	//
-	// if (solver.empty()) { throw "Solver not defined "; }
-	// VCellSundialsSolver *vss = nullptr;
-	//
-	// if (solver == IDA_SOLVER) {
-	// 	vss = new VCellIDASolver();
-	// } else if (solver == CVODE_SOLVER) {
-	// 	vss = new VCellCVodeSolver();
-	// } else {
-	// 	std::stringstream ss;
-	// 	ss << "Solver " << solver << " not defined!";
-	// 	throw ss.str();
-	// }
-	//
-	// vss->solve(nullptr, true, outputFile, VCellSundialsSolver::checkStopRequested);
-	// delete vss;
-
-
-	VCellSolver* targetSolver = VCellSolverFactory::produceVCellSolver(inputFileStream, taskID);
-	targetSolver->solve(nullptr, true, outputFile, VCellSundialsSolver::checkStopRequested);
 }
 
 void errExit(int returnCode, std::string &errorMsg) {

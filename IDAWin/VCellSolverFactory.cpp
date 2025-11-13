@@ -14,7 +14,7 @@
 #include "VCellCVodeSolver.h"
 #include "VCellIDASolver.h"
 #ifdef USE_MESSAGING
-static void loadJMSInfo(std::istream &ifsInput, int taskID);
+#include <VCELL/SimulationMessaging.h>
 #endif
 // Forward Declarations
 static void readDiscontinuities (std::istream &inputStream, VCellSolverInputBreakdown& inputBreakdown);
@@ -54,12 +54,7 @@ VCellSolverInputBreakdown VCellSolverFactory::parseInputFile(std::ifstream& inpu
 		inputFileStream >> nextToken;
 		if (nextToken.empty()) continue;
 		if (nextToken[0] == '#') std::getline(inputFileStream, nextToken);
-		else if (nextToken == "JMS_PARAM_BEGIN") {
-			#ifdef USE_MESSAGING
-			loadJMSInfo(inputFileStream, taskID);
-			SimulationMessaging::getInstVar()->start(); // start the thread
-			#endif
-		} else if (nextToken == "SOLVER") {
+		else if (nextToken == "SOLVER") {
 			std::string solverName;
 			inputFileStream >> solverName;
 			inputBreakdown.solverType = determineSolverType(solverName);
@@ -112,10 +107,13 @@ VCellSolverInputBreakdown VCellSolverFactory::parseInputFile(std::ifstream& inpu
 }
 
 VCellSolverTypes VCellSolverFactory::determineSolverType(const std::string& solverName){
-	if (solverName == "CVODE") return VCellSolverTypes::CVODE;
-	if (solverName == "IDA") return VCellSolverTypes::IDA;
-	if (solverName == "CSSS") return VCellSolverTypes::STEADY_STATE; // copasi-style steady-state
-	throw new std::runtime_error("Unknown solver type: `" + solverName + "`");
+	if (solverName == "CVODE")
+		return VCellSolverTypes::CVODE;
+	if (solverName == "IDA")
+		return VCellSolverTypes::IDA;
+	if (solverName == "CSSS")
+		return VCellSolverTypes::STEADY_STATE; // copasi-style steady-state
+	throw std::runtime_error("Unknown solver type: `" + solverName + "`");
 }
 
 void VCellSolverFactory::processEquations(std::ifstream& inputFileStream, VCellSolverInputBreakdown& inputBreakdown) {
@@ -126,51 +124,6 @@ void VCellSolverFactory::processEquations(std::ifstream& inputFileStream, VCellS
 /** * * * * * * * * * * * * * * * * * * * * * * * * * * *
  * Local Helper Functions
  * * * * * * * * * * * * * * * * * * * * * * * * * * * **/
-
-#ifdef USE_MESSAGING
-static void loadJMSInfo(std::istream &ifsInput, int taskID) {
-	if (taskID < 0) {
-		SimulationMessaging::create();
-		return; // No need to do any parsing
-	}
-	std::string broker;
-	std::string smqUserName;
-	std::string password;
-	std::string qName;
-	std::string topicName;
-	std::string vCellUsername;
-	int simKey, jobIndex;
-
-	while (!ifsInput.eof()) {
-		std::string nextToken;
-		ifsInput >> nextToken;
-		if (nextToken.empty()) continue;
-		if (nextToken[0] == '#') {
-			// std::getline(ifsInput, nextToken); // Is this ignoring because of a comment?
-			ifsInput.ignore('\n');
-			continue;
-		}
-		if (nextToken == "JMS_PARAM_END") { ifsInput.ignore(EOF); } else if (
-			nextToken == "JMS_BROKER") { ifsInput >> broker; } else if (
-			nextToken == "JMS_USER") { ifsInput >> smqUserName >> password; } else if (
-			nextToken == "JMS_QUEUE") { ifsInput >> qName; } else if (
-			nextToken == "JMS_TOPIC") { ifsInput >> topicName; } else if (nextToken == "VCELL_USER") {
-				ifsInput >> vCellUsername;
-			} else if (nextToken == "SIMULATION_KEY") {
-				ifsInput >> simKey;
-				continue;
-			} else if (nextToken == "JOB_INDEX") {
-				ifsInput >> jobIndex;
-				continue;
-			}
-	}
-
-	SimulationMessaging::create(broker.c_str(), smqUserName.c_str(),
-								password.c_str(), qName.c_str(), topicName.c_str(),
-								vCellUsername.c_str(), simKey, jobIndex, taskID);
-
-}
-#endif
 
 static void readDiscontinuities(std::istream &inputStream, VCellSolverInputBreakdown& inputBreakdown) {
 	VCellSolverInputBreakdown::DiscontinuityComponents discontinuityComponents;
@@ -483,7 +436,10 @@ static void loadJMSInfo(std::istream &ifsInput, int taskID) {
 	std::string vCellUsername;
 	int simKey, jobIndex;
 
-	while (!ifsInput.eof()) {
+	while (true) {
+		if (ifsInput.eof())
+			throw std::runtime_error("VCellSolverFactory::loadJMSInfo() reached end of file, but no `JMS_PARAM_END` reached!");
+
 		std::string nextToken;
 		ifsInput >> nextToken;
 		if (nextToken.empty()) continue;
@@ -492,19 +448,15 @@ static void loadJMSInfo(std::istream &ifsInput, int taskID) {
 			ifsInput.ignore('\n');
 			continue;
 		}
-		if (nextToken == "JMS_PARAM_END") { ifsInput.ignore(EOF); } else if (
-			nextToken == "JMS_BROKER") { ifsInput >> broker; } else if (
-			nextToken == "JMS_USER") { ifsInput >> smqUserName >> password; } else if (
-			nextToken == "JMS_QUEUE") { ifsInput >> qName; } else if (
-			nextToken == "JMS_TOPIC") { ifsInput >> topicName; } else if (nextToken == "VCELL_USER") {
-				ifsInput >> vCellUsername;
-			} else if (nextToken == "SIMULATION_KEY") {
-				ifsInput >> simKey;
-				continue;
-			} else if (nextToken == "JOB_INDEX") {
-				ifsInput >> jobIndex;
-				continue;
-			}
+		if (nextToken == "JMS_PARAM_END") break; // Non-error stop condition
+
+		if (nextToken == "JMS_BROKER") ifsInput >> broker;
+		else if (nextToken == "JMS_USER") ifsInput >> smqUserName >> password;
+		else if (nextToken == "JMS_QUEUE") ifsInput >> qName;
+		else if (nextToken == "JMS_TOPIC") ifsInput >> topicName;
+		else if (nextToken == "VCELL_USER") ifsInput >> vCellUsername;
+		else if (nextToken == "SIMULATION_KEY") ifsInput >> simKey;
+		else if (nextToken == "JOB_INDEX") ifsInput >> jobIndex;
 	}
 
 	SimulationMessaging::create(broker.c_str(), smqUserName.c_str(),

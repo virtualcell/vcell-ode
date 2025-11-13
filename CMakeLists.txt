@@ -11,7 +11,6 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
 endif ()
 enable_language(CXX)
 enable_language(C)
-#enable_language(Fortran)
 
 #############################################
 #  If this isn't explicitly set in cmake 3.x.x, we get warnings
@@ -33,7 +32,6 @@ option(OPTION_EXTRA_CONFIG_INFO "Print useful cmake debug info while configuring
 #
 #  Build 64bit binaries on Mac and target Macos 10.7 or later
 #
-#	set(CMAKE_Fortran_OSX_DEPLOYMENT_TARGET_FLAG "-mmacosx-version-min=10.7" CACHE PATH "")
 #	set(CMAKE_OSX_DEPLOYMENT_TARGET "10.7" CACHE PATH "")
 #
 #  Choose 32bit or 64bit target arch on Linux
@@ -51,13 +49,11 @@ if (LINUX)
 		set (ARCH_64bit FALSE)
 		set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m32")
 		set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m32")
-#		set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -m32")
 	endif()
 	
 	if (LINUX_64bit_BINARIES) 
 		set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -m64")
 		set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -m64")
-#		set (CMAKE_Fortran_FLAGS "${CMAKE_Fortran_FLAGS} -m64")
 	endif()
 endif()
 
@@ -185,11 +181,11 @@ endif()
 #######################################
 
 add_subdirectory(VCellMessaging)
-message(STATUS "adding ExpressionParser")
 add_subdirectory(ExpressionParser)
-message(STATUS "adding sundials")
 add_subdirectory(sundials)
 add_subdirectory(IDAWin)
+enable_testing()
+add_subdirectory(tests)
 
 set(DOWNLOAD_EXTRACT_TIMESTAMP true)
 cmake_policy(SET CMP0135 NEW)
@@ -207,21 +203,7 @@ FetchContent_Declare(
 		GIT_REPOSITORY https://github.com/p-ranav/argparse.git
 )
 FetchContent_MakeAvailable(argparse)
-#############################################
-#  GoogleTest
-##############################################
-FetchContent_Declare(
-		googletest
-		GIT_REPOSITORY https://github.com/google/googletest.git
-		GIT_TAG          v1.17.0
-)
-if (WINDOWS)
-	# For Windows: Prevent overriding the parent project's compiler/linker settings
-	set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
-endif()
 
-FetchContent_MakeAvailable(googletest)
-enable_testing()
 
 #############################################
 #
@@ -237,10 +219,8 @@ if (OPTION_EXTRA_CONFIG_INFO)
 
 	include(CMakePrintHelpers)
 	cmake_print_variables(OPTION_TARGET_MESSAGING OPTION_TARGET_DOCS)
-#	cmake_print_variables(CMAKE_CXX_FLAGS CMAKE_C_FLAGS CMAKE_Fortran_FLAGS)
 	cmake_print_variables(CMAKE_CXX_FLAGS CMAKE_C_FLAGS)
 	cmake_print_variables(CMAKE_SYSTEM_NAME WINDOWS WIN32 MINGW APPLE ARCH_64bit ARCH_32bit)
-#	cmake_print_variables(CMAKE_CPP_COMPILER CMAKE_C_COMPILER CMAKE_CXX_COMPILER CMAKE_Fortran_COMPILER)
 	cmake_print_variables(CMAKE_CPP_COMPILER CMAKE_C_COMPILER CMAKE_CXX_COMPILER)
 endif ()
 
