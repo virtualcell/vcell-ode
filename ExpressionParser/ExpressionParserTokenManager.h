@@ -5,7 +5,6 @@
 #include <string>
 
 
-
 #include "Token.h"
 #include "SimpleCharStream.h"
 

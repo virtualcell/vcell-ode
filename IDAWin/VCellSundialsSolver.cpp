@@ -7,6 +7,8 @@
 #include <cmath>
 #include <sstream>
 #include <string>
+#include <format>
+#include <algorithm>
 
 #ifdef USE_MESSAGING
 #include <VCELL/SimulationMessaging.h>

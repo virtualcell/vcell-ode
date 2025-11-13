@@ -16,6 +16,7 @@
 //#include <ida/ida_spgmr.h>
 #include <nvector/nvector_serial.h>
 #include <memory.h>
+#include <format>
 #ifdef USE_MESSAGING
 #include <VCELL/SimulationMessaging.h>
 #endif

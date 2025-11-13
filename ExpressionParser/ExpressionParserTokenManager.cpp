@@ -1,6 +1,7 @@
 #include <memory.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <format>
 
 #include "ExpressionParserTokenManager.h"
 #include "RuntimeException.h"
