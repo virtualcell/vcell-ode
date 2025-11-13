@@ -54,7 +54,7 @@ jobs:
         if: matrix.platform == 'macos-15-intel'
         shell: bash
         run: |
-          python3 -m pip install conan
+          brew install conan
           conan --version
           mkdir -p ~/.conan2/profiles/
           touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
@@ -139,7 +139,7 @@ jobs:
           cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release
           cmake --build . --config Release
 
-      - name: Build Unix
+      - name: Build Non-Intel-Mac Unix
         if: matrix.platform == 'ubuntu-latest' || matrix.platform == 'ubuntu-24.04-arm' || matrix.platform == 'macos-15-intel' || matrix.platform == 'macos-latest'
         run: |
           echo "working dir is $PWD"
