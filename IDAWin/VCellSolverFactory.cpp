@@ -103,6 +103,12 @@ VCellSolverInputBreakdown VCellSolverFactory::parseInputFile(std::ifstream& inpu
 		else throw VCell::Exception("Unexpected token \"" + nextToken + "\" in the input file!");
 
 	}
+
+
+	#ifdef USE_MESSAGING
+	// Since messaging assumes we have a job requiring messaging, we should initialize a "default" messaging handler
+	if (NULL == SimulationMessaging::getInstVar()) SimulationMessaging::create();
+	#endif
 	return inputBreakdown;
 }
 
@@ -191,7 +197,7 @@ static void readEvents(std::istream &inputStream, VCellSolverInputBreakdown& inp
 					//eventComponents.eventAssignments.emplace_back(varIndex, assignmentExpression); // should try this in the future, more descriptive
 				}
 				break;
-			} else { throw VCell::Exception("Unexpected token \"" + token + "\" in the input file!"); }
+			} else { throw VCell::Exception("Unexpected event token \"" + token + "\" in the input file!"); }
 		}
 		inputBreakdown.eventSettings.EVENTS.push_back(std::move(eventComponents));
 	}
@@ -421,13 +427,10 @@ static void collectSteadyStateTerms(std::ifstream& inputFileStream, VCellSolverI
 
 static void loadJMSInfo(std::istream &ifsInput, int taskID) {
 	#ifndef USE_MESSAGING
-	return; // Only useful for messaging; let's not waste time!
-	#else
-
-	if (taskID < 0) {
-		SimulationMessaging::create();
-		return; // No need to do any parsing
-	}
+	// We'll still parse the section, as we can still execute the simulation; we'll just toss the values!
+	std::cerr << "WARNING: Input file expects messaging capabilities; this build does not support JMS messaging!" << std::endl;
+	#endif
+	
 	std::string broker;
 	std::string smqUserName;
 	std::string password;
@@ -459,6 +462,7 @@ static void loadJMSInfo(std::istream &ifsInput, int taskID) {
 		else if (nextToken == "JOB_INDEX") ifsInput >> jobIndex;
 	}
 
+	#ifdef USE_MESSAGING
 	SimulationMessaging::create(broker.c_str(), smqUserName.c_str(),
 								password.c_str(), qName.c_str(), topicName.c_str(),
 								vCellUsername.c_str(), simKey, jobIndex, taskID);

@@ -36,7 +36,7 @@ int parseAndRunWithArgParse(int argc, char *argv[]) {
 	argumentParser.add_argument("input").help("path to directory with input files.").store_into(inputFilePath);
 	argumentParser.add_argument("output").help("path to directory for output files.").store_into(outputFilePath);
 	#ifdef USE_MESSAGING
-	argumentParser.add_argument("-tid").help("path to solver to run.").store_into(taskID);
+	argumentParser.add_argument("-tid").help("id of the job").store_into(taskID);
 	#endif
 
 	try {

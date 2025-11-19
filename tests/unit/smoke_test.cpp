@@ -16,16 +16,13 @@
 
 void compare(const std::filesystem::path& file1, const std::filesystem::path& file2, float tolerance);
 
-
-TEST(SmokeTest, MessagingRequiresJobID) {
-	#ifndef USE_MESSAGING
-	return; // no need to test this
-	#endif
+TEST(SmokeTest, UserProvidesFilesWithoutJMS) {
+	constexpr int taskID = -1, hashID = 1489333437;
 	const std::filesystem::path RESOURCE_DIRECTORY{RESOURCE_DIR};
-	const std::filesystem::path OUTPUT_TARGET{RESOURCE_DIRECTORY /"SimID_1489333437_0_.ida",};
+	const std::filesystem::path OUTPUT_TARGET{RESOURCE_DIRECTORY /std::format("SimID_{}_0_.ida", hashID)};
 	const std::array NECESSARY_FILES{
-		RESOURCE_DIRECTORY /"SimID_1489333437_0_.cvodeInput",
-		RESOURCE_DIRECTORY /"SimID_1489333437_0_.ida.expected"
+		RESOURCE_DIRECTORY /std::format("SimID_{}_0_.cvodeInput", hashID),
+		RESOURCE_DIRECTORY /std::format("SimID_{}_0_.ida.expected", hashID)
 	};
 	for (const auto& file : NECESSARY_FILES) {
 		assert(std::filesystem::exists(file));
@@ -39,16 +36,14 @@ TEST(SmokeTest, MessagingRequiresJobID) {
 		throw std::runtime_error("Could not open output file[" + OUTPUT_TARGET.string() + "] for writing.");
 	}
 
-	EXPECT_THROW(activateSolver(inputFileStream, outputFile, -1), std::runtime_error);
+	activateSolver(inputFileStream, outputFile, taskID);
 	fclose(outputFile);
+
+	compare(OUTPUT_TARGET, NECESSARY_FILES[1], 1e-7);
 }
 
-TEST(SmokeTest, ConfirmExecution) {
-	#ifdef USE_MESSAGING
-	const int taskID = 2025, hashID = 256118677;
-	#else
-	const int taskID = -1, hashID = 1489333437;
-	#endif
+TEST(SmokeTest, UserProvidesFilesWithJMS) {
+	constexpr int taskID = 2025, hashID = 256118677;
 	const std::filesystem::path RESOURCE_DIRECTORY{RESOURCE_DIR};
 	const std::filesystem::path OUTPUT_TARGET{RESOURCE_DIRECTORY /std::format("SimID_{}_0_.ida", hashID)};
 	const std::array NECESSARY_FILES{
