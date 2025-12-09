@@ -1,31 +1,29 @@
-/build-linux64-server/
-/build-dockcross-win64/
+
 /.project
 /.cproject
-/build-win64/
 /.DS_Store
-/build-linux64/
-/build-macos/
 /packages/
-/build_archive/
-/build-linux64-ubuntu/
+
 /conan/
 /singularity/
-/cmake-build*
-/build*
-/debug-build*
 /.idea/
-/nfsim/
-/all_solvers/*
 
 .DS_Store
-
-NFsim_v1.11/tests/smoke/SimID_273069657_0_.gdat
-NFsim_v1.11/tests/smoke/SimID_273069657_0_.species
 
 *.ida
 
 CMakeUserPresets.json
+
+/build-linux64-server/
+/build-dockcross-win64/
+/build-win64/
+/build-linux64/
+/build-macos/
+/build_archive/
+/build-linux64-ubuntu/
+/build*
+/cmake-build*
+/debug-build*
 conan-build
 conan-build/*
 conan_provider.cmake

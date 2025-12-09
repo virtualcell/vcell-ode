@@ -4,8 +4,6 @@
 #ifndef VCELL_ODE_NUMERICS_CURLPROXY_H
 #define VCELL_ODE_NUMERICS_CURLPROXY_H
 #include <string>
-#include <curl/curl.h>
-
 #include "VCELL/WorkerEvent.h"
 
 
@@ -26,6 +24,8 @@ class NullCurlProxy final : public AbstractCurlProxy {
 };
 
 #ifdef USE_MESSAGING
+#include <curl/curl.h>
+
 class CurlProxy final : public AbstractCurlProxy {
 	public:
 		CurlProxy(long simKey, int taskID, int jobIndex, const std::string& vcusername, const std::string& broker, int ttlLow, int ttlHigh);

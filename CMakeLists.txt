@@ -19,7 +19,7 @@ if(POLICY CMP0057)
 	cmake_policy(SET CMP0057 NEW)
 endif()
 
-if (WINDOWS)
+if (WIN32)
 	cmake_policy(SET CMP0091 NEW)
 endif ()
 
@@ -89,7 +89,6 @@ endif()
 
 option(OPTION_TARGET_MESSAGING "Messaging (requires libcurl)" off)
 option(OPTION_TARGET_DOCS "Generate Doxygen documentation" off)
- 
                   
 if (${OPTION_TARGET_DOCS})
 #	if (DOXYGEN_FOUND AND ${CMAKE_VERSION} GREATER_EQUAL 3.9)
@@ -117,34 +116,27 @@ endif()
 
 set(HDF5_BUILD_CPP_LIB OFF CACHE BOOL "" )
 
-set(LINUX FALSE)
-if (${CMAKE_SYSTEM_NAME} MATCHES Linux)
-	set(LINUX TRUE)
-endif()
 
-set(WINDOWS FALSE)
-if (${CMAKE_SYSTEM_NAME} MATCHES Windows)
-	set(WINDOWS TRUE)
-	set(WIN32 TRUE)
-	set(MINGW TRUE)
-endif()
+#if (WIN32) # Only linux is designed at this point to support messaging, but unix should work too (and our devs generally work on macs)
+#	set(OPTION_TARGET_MESSAGING OFF)
+#endif()
 
 set (ARCH_64bit FALSE)
 if (CMAKE_SIZEOF_VOID_P EQUAL 8)
 	set (ARCH_64bit TRUE)
 endif()
 
-if (NOT APPLE AND NOT LINUX AND NOT WINDOWS)
+if (NOT APPLE AND NOT LINUX AND NOT WIN32)
 	message(FATAL_ERROR "Unsupported Operating System")
 endif()
 
 #---------------------------
 #  IDE SUPPORT
 #---------------------------
-if (WINDOWS)
+if (WIN32)
 	set(NETBEANS_WINDOWS TRUE)
 	set(CMAKE_RC_FLAGS "-DGCC_WINDRES")
-endif(WINDOWS)
+endif(WIN32)
 
 #add_definitions(-DFORTRAN_UNDERSCORE)
 
@@ -220,7 +212,7 @@ if (OPTION_EXTRA_CONFIG_INFO)
 	include(CMakePrintHelpers)
 	cmake_print_variables(OPTION_TARGET_MESSAGING OPTION_TARGET_DOCS)
 	cmake_print_variables(CMAKE_CXX_FLAGS CMAKE_C_FLAGS)
-	cmake_print_variables(CMAKE_SYSTEM_NAME WINDOWS WIN32 MINGW APPLE ARCH_64bit ARCH_32bit)
+	cmake_print_variables(CMAKE_SYSTEM_NAME WIN32 APPLE LINUX ARCH_64bit ARCH_32bit)
 	cmake_print_variables(CMAKE_CPP_COMPILER CMAKE_C_COMPILER CMAKE_CXX_COMPILER)
 endif ()
 
