@@ -1,8 +1,7 @@
 // Messaging
-#ifdef USE_MESSAGING
+
 #include <VCELL/SimulationMessaging.h>
 #include <memory.h>
-#endif
 // Standard Includes
 #include <iomanip>
 #include <fstream>
@@ -18,7 +17,6 @@
 #define IDA_SOLVER "IDA"
 
 int parseAndRunWithArgParse(int argc, char *argv[]);
-void errExit(int returnCode, std::string &errorMsg);
 
 int main(int argc, char *argv[]) {
 	std::cout << std::setprecision(20);
@@ -58,46 +56,15 @@ int parseAndRunWithArgParse(int argc, char *argv[]) {
 			throw std::runtime_error("Could not open output file[" + outputFilePath + "] for writing.");
 		}
 		activateSolver(inputFileStream, outputFile, taskID);
-
-	} catch (const char *ex) {
-		errMsg += ex;
-		returnCode = -1;
-	} catch (std::string &ex) {
-		errMsg += ex;
-		returnCode = -1;
-	} catch (StoppedByUserException&) {
-		returnCode = 0; // stopped by user;
-	} catch (VCell::Exception &ex) {
-		errMsg += ex.getMessage();
-		returnCode = -1;
-	} catch (const std::exception& err) {
-		errMsg += err.what();
-		returnCode = -1;
+	} catch (const std::runtime_error& err) {
+		std::cerr << err.what() << std::endl;
+		returnCode = 5;
 	} catch (...) {
-		errMsg += "unknown error";
-		returnCode = -1;
+		std::cerr << "Unknown exception thrown." << std::endl;
+		returnCode = 255;
 	}
 
 	if (outputFile != NULL) { fclose(outputFile); }
 	if (inputFileStream.is_open()) { inputFileStream.close(); }
-	errExit(returnCode, errMsg);
 	return returnCode;
-}
-
-void errExit(int returnCode, std::string &errorMsg) {
-	#ifdef USE_MESSAGING
-	if (returnCode != 0) {
-		if (SimulationMessaging::getInstVar() != nullptr && !SimulationMessaging::getInstVar()->isStopRequested()) {
-			SimulationMessaging::getInstVar()->setWorkerEvent(new WorkerEvent(JOB_FAILURE, errorMsg.c_str()));
-		}
-	}
-	#endif
-
-	if (returnCode != 0) std::cerr << errorMsg << std::endl;
-	#ifdef USE_MESSAGING
-	else if (SimulationMessaging::getInstVar() != nullptr) {
-		SimulationMessaging::getInstVar()->waitUntilFinished();
-		delete SimulationMessaging::getInstVar();
-	}
-	#endif
 }

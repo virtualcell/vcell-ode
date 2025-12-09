@@ -60,9 +60,9 @@ VCellSolverInputBreakdown VCellSolverFactory::parseInputFile(std::ifstream& inpu
 			inputBreakdown.solverType = determineSolverType(solverName);
 		} else if (nextToken == "JMS_PARAM_BEGIN") {
 			loadJMSInfo(inputFileStream, taskID);
-			#ifdef USE_MESSAGING
-			SimulationMessaging::getInstVar()->start(); // start the thread
-			#endif
+			// #ifdef USE_MESSAGING
+			// SimulationMessaging::getInstVar()->start(); // start the thread
+			// #endif
 		}
 		else if (nextToken == "STARTING_TIME") { inputFileStream >> inputBreakdown.timeCourseSettings.STARTING_TIME; }
 		else if (nextToken == "ENDING_TIME") { inputFileStream >> inputBreakdown.timeCourseSettings.ENDING_TIME; }
@@ -430,7 +430,7 @@ static void loadJMSInfo(std::istream &ifsInput, int taskID) {
 	// We'll still parse the section, as we can still execute the simulation; we'll just toss the values!
 	std::cerr << "WARNING: Input file expects messaging capabilities; this build does not support JMS messaging!" << std::endl;
 	#endif
-	
+
 	std::string broker;
 	std::string smqUserName;
 	std::string password;

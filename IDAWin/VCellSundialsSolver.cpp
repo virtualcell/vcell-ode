@@ -122,7 +122,7 @@ void VCellSundialsSolver::printProgress(double currTime, double &lastPercentile,
 
 	if (currTime == STARTING_TIME) { // print 0%
 		#ifdef USE_MESSAGING
-		SimulationMessaging::getInstVar()->setWorkerEvent(new WorkerEvent(JOB_PROGRESS, lastPercentile, currTime));
+		SimulationMessaging::getInstVar()->setWorkerEvent(JobEvent::JOB_PROGRESS, lastPercentile, currTime);
 		#else
 		printf("[[[progress:%lg%%]]]", lastPercentile*100.0);
 		fflush(stdout);
@@ -144,8 +144,8 @@ void VCellSundialsSolver::printProgress(double currTime, double &lastPercentile,
 			if (lastPercentile != newPercentile) {
 				#ifdef USE_MESSAGING
 				SimulationMessaging::getInstVar()->
-						setWorkerEvent(new WorkerEvent(JOB_PROGRESS, newPercentile, currTime));
-				SimulationMessaging::getInstVar()->setWorkerEvent(new WorkerEvent(JOB_DATA, newPercentile, currTime));
+						setWorkerEvent(JobEvent::JOB_PROGRESS, newPercentile, currTime);
+				SimulationMessaging::getInstVar()->setWorkerEvent(JobEvent::JOB_DATA, newPercentile, currTime);
 				#else
 				printf("[[[progress:%lg%%]]]", newPercentile*100.0);
 				printf("[[[data:%lg]]]", currTime);

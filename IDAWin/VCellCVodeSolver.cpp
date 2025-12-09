@@ -501,7 +501,7 @@ void VCellCVodeSolver::cvodeSolve(bool bPrintProgress, FILE* outputFile, void (*
 		}
 	}
 #ifdef USE_MESSAGING
-	SimulationMessaging::getInstVar()->setWorkerEvent(new WorkerEvent(JOB_COMPLETED, 1, Time));
+	SimulationMessaging::getInstVar()->setWorkerEvent(JobEvent::JOB_COMPLETED, 1, Time);
 #endif
 }
 

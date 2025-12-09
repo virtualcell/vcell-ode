@@ -7,7 +7,7 @@ FetchContent_Declare(
         GIT_REPOSITORY https://github.com/google/googletest.git
         GIT_TAG          v1.17.0
 )
-if (WINDOWS)
+if (WIN32)
     # For Windows: Prevent overriding the parent project's compiler/linker settings
     set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 endif()
@@ -19,6 +19,7 @@ include(GoogleTest)
 add_executable(unit_tests
         unit/smoke_test.cpp
         unit/hello_test.cpp
+        unit/message_processing_test.cpp
 )
 target_link_libraries(unit_tests PRIVATE
         IDAWin
