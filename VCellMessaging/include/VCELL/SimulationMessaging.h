@@ -1,10 +1,8 @@
 #ifndef _SIMULATIONMESSAGING_H_
 #define _SIMULATIONMESSAGING_H_
 
-#include <string>
 #include <vector>
-#include <iostream>
-#include <memory.h>
+
 
 #include "CurlProxyClasses.h"
 #include "MessageEventManager.h"
@@ -94,12 +92,6 @@ class SimulationMessaging {
 		int taskID;
 		int m_jobIndex;
 		time_t lastSentEventTime;
-
-		pthread_t newWorkerEventThread;
-		pthread_mutex_t mutex_messaging;
-		pthread_mutex_t mutex_workerEvent;
-		pthread_mutex_t mutex_cond_workerEvent;
-		pthread_cond_t cond_workerEvent;
 		bool bNewWorkerEvent;
 
 };

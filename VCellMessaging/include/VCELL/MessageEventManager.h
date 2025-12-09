@@ -54,7 +54,7 @@ class MessageEventManager {
 		std::queue<WorkerEvent*> eventQueue;
 		std::mutex queuetex;
 
-		std::jthread eventQueueProcessingWorkerThread;
+		std::thread eventQueueProcessingWorkerThread; //TODO: make a `std::jthread` once compilers catch up with standard
 		std::condition_variable needMessageProcessingForeman;
 		std::function<void(WorkerEvent*)> sendUpdateFunction;
 };

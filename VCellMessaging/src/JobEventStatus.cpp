@@ -2,6 +2,7 @@
 // Created by Logan Drescher on 11/25/25.
 //
 #include <VCELL/JobEventStatus.h>
+#include <stdexcept>
 
 std::string JobEvent::toString(const Status status) {
 	switch (status) {

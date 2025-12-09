@@ -15,6 +15,7 @@ MessageEventManager::MessageEventManager(std::function<void(WorkerEvent*)> sendU
 
 MessageEventManager::~MessageEventManager() {
 	if (!this->stopRequested) this->requestStopAndWaitForIt();
+	this->eventQueueProcessingWorkerThread.join();
 }
 
 void MessageEventManager::enqueue(const JobEvent::Status status, const double progress, const double timepoint, const char *eventMessage) {
