@@ -27,9 +27,12 @@ target_link_libraries(unit_tests PRIVATE
 )
 gtest_discover_tests(unit_tests)
 
-target_compile_definitions(unit_tests PRIVATE
-        RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/unit/resources"
-)
+target_compile_definitions(unit_tests PRIVATE RESOURCE_DIR="${CMAKE_CURRENT_SOURCE_DIR}/unit/resources")
+if (OPTION_TEST_WITH_LOCALHOST)
+    target_compile_definitions(unit_tests PRIVATE TEST_WITH_LOCALHOST=1)
+else()
+    target_compile_definitions(unit_tests PRIVATE TEST_WITH_LOCALHOST=0)
+endif ()
 
 
 #add_executable(integration_tests

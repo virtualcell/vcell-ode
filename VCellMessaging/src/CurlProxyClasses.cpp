@@ -21,6 +21,7 @@ std::string trim(const std::string& str) {
 #include <array>
 #include <unistd.h>
 #include <ctime>
+#include <iostream>
 
 #include "VCELL/JobEventStatus.h"
 #include "VCELL/SimulationMessaging.h"

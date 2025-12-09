@@ -35,12 +35,7 @@ void performSmokeTest(const int taskID, const int hashID) {
 		throw std::runtime_error("Could not open output file[" + OUTPUT_TARGET.string() + "] for writing.");
 	}
 
-	try {
-		activateSolver(inputFileStream, outputFile, taskID);
-	} catch (const std::exception& e) {
-		std::cerr << "Error caught in test: " << e.what() << std::endl;
-		exit(EXIT_FAILURE);
-	}
+	activateSolver(inputFileStream, outputFile, taskID);
 	fclose(outputFile);
 
 	compare(OUTPUT_TARGET, NECESSARY_FILES[1], 1e-7);

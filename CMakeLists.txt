@@ -89,6 +89,7 @@ endif()
 
 option(OPTION_TARGET_MESSAGING "Messaging (requires libcurl)" off)
 option(OPTION_TARGET_DOCS "Generate Doxygen documentation" off)
+option(OPTION_TEST_WITH_LOCALHOST "Use localhost as server rather than vcell.cam.uchc.edu" off)
                   
 if (${OPTION_TARGET_DOCS})
 #	if (DOXYGEN_FOUND AND ${CMAKE_VERSION} GREATER_EQUAL 3.9)
@@ -164,6 +165,10 @@ if (OPTION_TARGET_MESSAGING)
 	set(THREADS_PREFER_PTHREAD_FLAG ON)
 	find_package(Threads REQUIRED)
 	add_definitions(-DUSE_MESSAGING)
+endif()
+
+if (OPTION_TEST_WITH_LOCALHOST)
+	add_definitions(-DTEST_WITH_LOCALHOST)
 endif()
 
 ######################################

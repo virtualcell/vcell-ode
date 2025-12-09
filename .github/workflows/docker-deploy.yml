@@ -9,6 +9,12 @@ env:
 jobs:
   build-and-push-image:
     runs-on: ubuntu-latest
+    services:
+      activemq:
+        image: rmohr/activemq:latest # Or a specific version like rmohr/activemq:5.15.9
+        ports:
+          - 30163:30163 # JMS port
+          - 8161:8161   # Web console port
     permissions:
       contents: read
       packages: write
