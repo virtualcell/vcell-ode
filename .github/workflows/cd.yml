@@ -216,46 +216,45 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: macos_x86_64.tgz
-          path: build/upload/mac_x86_64.tgz
+          path: build/upload/mac64.tgz
 
       - name: Upload ARM Macos binaries
         if: matrix.platform == 'macos-latest'
         uses: actions/upload-artifact@v4
         with:
           name: macos_arm64.tgz
-          path: build/upload/mac_arm_64.tgz
+          path: build/upload/mac64.tgz
 
       - name: Upload Windows (x86_64) binaries
         if: matrix.platform == 'windows-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: win64.zip
-          path: build/upload/win_x86_64.zip
+          name: win64_x86_64.zip
+          path: build/upload/win64.zip
 
       - name: Upload Windows (ARMv8) binaries
         if: matrix.platform == 'windows-11-arm'
         uses: actions/upload-artifact@v4
         with:
-          name: win64.zip
-          path: build/upload/win_ARMv8_64.zip
+          name: win64_arm64.zip
+          path: build/upload/win64.zip
 
       - name: Upload Linux (x86_64) binaries
         if: matrix.platform == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: linux64.tgz
-          path: build/upload/linux_x86_64.tgz
+          name: linux64_x86_64.tgz
+          path: build/upload/linux64.tgz
 
       - name: Upload Linux (ARMv8) binaries
         if: matrix.platform == 'ubuntu-24.04-arm'
         uses: actions/upload-artifact@v4
         with:
-          name: linux64.tgz
-          path: build/upload/linux_ARMv8_64.tgz
+          name: linux64_arm64.tgz
+          path: build/upload/linux64.tgz
 
       - name: Setup tmate session
         if: ${{ failure() }}
         uses: mxschmitt/action-tmate@v3
         with:
           limit-access-to-actor: false
-
