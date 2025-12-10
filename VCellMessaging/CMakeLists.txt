@@ -33,7 +33,7 @@ if (OPTION_TARGET_MESSAGING)
 		message(STATUS "CURL_INCLUDE_DIR = '${CURL_INCLUDE_DIR}'")
 	endif ()
 	
-	target_link_libraries(vcellmessaging ${CURL_LIBRARIES} Threads::Threads)
+	target_link_libraries(vcellmessaging ${CURL_LIBRARIES} Threads::Threads spdlog::spdlog) # if MinGW is enabled, add `$<$<BOOL:${MINGW}>:ws2_32>`
 	target_compile_definitions(vcellmessaging PUBLIC USE_MESSAGING=1)
 	target_include_directories(vcellmessaging PUBLIC ${CURL_INCLUDE_DIR})
 endif()

@@ -28,6 +28,10 @@ endif ()
 ##############################################
 option(OPTION_EXTRA_CONFIG_INFO "Print useful cmake debug info while configuring" OFF)
 
+if (MINGW)
+	message("ERROR: Due to the requirements of the project, mingw builds are currently disabled. Native windows builds should still work.")
+	return()
+endif ()
 #############################################
 #
 #  Build 64bit binaries on Mac and target Macos 10.7 or later
@@ -144,6 +148,16 @@ endif(WIN32)
 #############################################
 # installation directories
 #############################################
+# You can install spdlog with the following:
+# > Debian: sudo apt install libspdlog-dev
+# > Homebrew: brew install spdlog
+# > Conan: conan install --requires=spdlog/[*] ( it may be easier just to add to the conan file!)
+# > vcpkg: vcpkg install spdlog
+if(NOT TARGET spdlog)
+	# Stand-alone build
+	find_package(spdlog REQUIRED)
+endif()
+
 if (NOT OPTION_TARGET_MESSAGING)
 	set(OPTION_EXE_DIRECTORY "bin" CACHE PATH "installation directory")
 else (NOT OPTION_TARGET_MESSAGING)

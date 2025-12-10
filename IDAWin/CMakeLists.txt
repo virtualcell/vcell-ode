@@ -29,7 +29,7 @@ set (EXE_SRC_FILES
 )
 
 add_library(IDAWin STATIC ${SRC_FILES} ${HEADER_FILES})
-target_link_libraries(IDAWin sundials ExpressionParser vcellmessaging argparse)
+target_link_libraries(IDAWin sundials ExpressionParser vcellmessaging argparse spdlog::spdlog) # if MinGW is enabled, add `$<$<BOOL:${MINGW}>:ws2_32>`
 set(EXE_FILE SundialsSolverStandalone)
 if (ARCH_64bit) 
 	set(EXE_FILE ${EXE_FILE}_x64)

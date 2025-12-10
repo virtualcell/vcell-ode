@@ -31,6 +31,7 @@ class VCellODERecipe(ConanFile):
 
     def requirements(self):
         self.requires("argparse/[>=3.2 <4.0]")
+        self.requires("spdlog/[>=1.16.0 <2.0]")
         if self.options.include_messaging:
             self.requires("libcurl/[<9.0]")
 

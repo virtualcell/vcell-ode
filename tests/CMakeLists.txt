@@ -24,6 +24,8 @@ add_executable(unit_tests
 target_link_libraries(unit_tests PRIVATE
         IDAWin
         GTest::gtest_main
+        spdlog::spdlog
+        # if MinGW is enabled, add `$<$<BOOL:${MINGW}>:ws2_32>`
 )
 gtest_discover_tests(unit_tests)
 
