@@ -43,7 +43,13 @@ VCellSolver* VCellSolverFactory::produceVCellSolver(std::ifstream& inputFileStre
 		default:
 			throw new VCell::Exception("Unknown VCellSolver type");
 	}
-	desiredSolver->configureFromInput(inputBreakdown);
+	try {
+		desiredSolver->configureFromInput(inputBreakdown);
+	} catch (...) {
+		delete desiredSolver;
+		throw;
+	}
+
 	return desiredSolver;
 }
 
