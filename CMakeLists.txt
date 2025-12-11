@@ -24,14 +24,30 @@ if (WIN32)
 endif ()
 
 #############################################
-#  Display extra CMAKE info while configuring
+#  Declare Options
 ##############################################
+option(OPTION_TARGET_MESSAGING "Messaging (requires libcurl)" OFF)
+option(OPTION_TARGET_DOCS "Generate Doxygen documentation" OFF)
+option(OPTION_TEST_WITH_LOCALHOST "Use localhost as server rather than vcell.cam.uchc.edu" OFF)
 option(OPTION_EXTRA_CONFIG_INFO "Print useful cmake debug info while configuring" OFF)
+option(OPTION_STATICALLY_LINK "Decided whether to statically link, or use (and generate) dynamic shared libs" OFF)
 
+
+#############################################
+#  MinGW check
+##############################################
 if (MINGW)
 	message("ERROR: Due to the requirements of the project, mingw builds are currently disabled. Native windows builds should still work.")
 	return()
 endif ()
+
+if (OPTION_STATICALLY_LINK)
+	#set(BUILD_SHARED_LIBS OFF)
+	set(CMAKE_EXE_LINKER_FLAGS "-static")
+else ()
+	#set(BUILD_SHARED_LIBS ON)
+endif ()
+
 #############################################
 #
 #  Build 64bit binaries on Mac and target Macos 10.7 or later
@@ -80,20 +96,6 @@ else()
    SET(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: None(CMAKE_CXX_FLAGS or CMAKE_C_FLAGS used) Debug Release RelWithDebInfo MinSizeRel.")
 endif()
 
-#include (CMakeTestCCompiler)
-#include (CheckCSourceCompiles)
-#include (CheckCXXSourceCompiles)
-#include (CheckStructHasMember)
-#include (CheckLibraryExists)
-#include (CheckFunctionExists)
-#include (CheckCCompilerFlag)
-#include (CheckCSourceRuns)
-#include (CheckSymbolExists)
-#include (CheckTypeSize)
-
-option(OPTION_TARGET_MESSAGING "Messaging (requires libcurl)" off)
-option(OPTION_TARGET_DOCS "Generate Doxygen documentation" off)
-option(OPTION_TEST_WITH_LOCALHOST "Use localhost as server rather than vcell.cam.uchc.edu" off)
                   
 if (${OPTION_TARGET_DOCS})
 #	if (DOXYGEN_FOUND AND ${CMAKE_VERSION} GREATER_EQUAL 3.9)

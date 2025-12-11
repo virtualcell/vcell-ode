@@ -3,29 +3,115 @@ name: CD
 on: [push, workflow_dispatch]
 
 jobs:
-  native-build:
-    name:
-      native-build-${{ matrix.platform }}
+  MacOS:
+    name: native-build-${{ matrix.platform }}
+    runs-on: ${{ matrix.platform }}
     strategy:
       fail-fast: false
       matrix:
-        platform: [windows-latest, ubuntu-latest, ubuntu-24.04-arm, macos-15-intel, macos-latest]
-        #platform: [windows-latest, windows-11-arm, ubuntu-latest, ubuntu-24.04-arm, macos-15-intel, macos-latest]
-
-    runs-on: ${{ matrix.platform }}
+        platform: [ macos-15-intel, macos-latest ]
 
     steps:
       - name: checkout vcell-ode repo
         uses: actions/checkout@v4
 
+      - name: Install MacOS dependencies <x86_64>
+        if: matrix.platform == 'macos-15-intel'
+        shell: bash
+        run: |
+          brew install conan
+          conan --version
+          mkdir -p ~/.conan2/profiles/
+          touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
+          cp conan-profiles/CI-CD/MacOS-AMD64_profile.txt ~/.conan2/profiles/default
+
+      - name: Install MacOS dependencies <ARM>
+        if: matrix.platform == 'macos-latest'
+        shell: bash
+        run: |
+          brew install conan
+          conan --version
+          mkdir -p ~/.conan2/profiles/
+          touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
+          cp conan-profiles/CI-CD/MacOS-ARM64_profile.txt ~/.conan2/profiles/default
+
+      - name: Install Dependencies through Conan on MacOS
+        if: matrix.platform == 'macos-latest' || matrix.platform == 'macos-15-intel'
+        shell: bash
+        run: |
+          conan install . --output-folder build --build=missing          
+
+      - name: Build Mac
+        run: |
+          echo "working dir is $PWD"
+          cd build
+          source conanbuild.sh
+          cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release
+          cmake --build . --config Release
+
+      - name: Test Mac
+        run: |
+          cd build
+
+          ctest -VV
+          
+          echo "------ running SundialsSolverStandalone_x64 ------"
+          ./bin/SundialsSolverStandalone_x64 || true
+
+
+      - name: Make MacOS Shared Object Paths Relative
+        shell: bash
+        run: |
+          mkdir build/upload
+          cd build/bin
+          rm unit_tests
+          ls *_x64   | awk '{print $1}' | xargs -I '{}' otool -L '{}' | grep ")" | grep -v "build" | grep -v "System" | awk '{print $1}' | xargs -I '{}' cp -vn '{}' . || true
+          ls *.dylib | awk '{print $1}' | xargs -I '{}' otool -L '{}' | grep ")" | grep -v "build" | grep -v "System" | awk '{print $1}' | xargs -I '{}' cp -vn '{}' . || true
+          ls *.dylib | awk '{print $1}' | xargs -I '{}' otool -L '{}' | grep ")" | grep -v "build" | grep -v "System" | awk '{print $1}' | xargs -I '{}' cp -vn '{}' . || true
+          chmod u+w,+x *
+          tar czvf ../upload/mac64_bad_paths.tgz .
+          ../../.github/scripts/install_name_tool_macos.sh
+          tar czvf ../upload/mac64.tgz --dereference .
+
+      - name: Upload Intel Macos binaries
+        if: matrix.platform == 'macos-15-intel'
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos_x86_64
+          path: build/upload/mac64.tgz
+
+      - name: Upload ARM Macos binaries
+        if: matrix.platform == 'macos-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos_arm64
+          path: build/upload/mac64.tgz
+
+      - name: Setup tmate session
+        if: ${{ failure() }}
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: false
+
+
+  WindowsOS:
+    name: native-build-${{ matrix.platform }}
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        #platform: [ windows-latest, windows-11-arm ]
+        platform: [ windows-latest ]
+    steps:
+      - name: checkout vcell-ode repo
+        uses: actions/checkout@v4
+
       - name: Install Windows Dependencies (Part 0 - Setup LLVM-style)
-        if: matrix.platform == 'windows-latest' || matrix.platform == 'windows-11-arm'
         uses: llvm/actions/setup-windows@main
         with:
           arch: amd64
 
       - name: Install Windows Dependencies (Part 1 - Configure Conan ...and zip)
-        if: matrix.platform == 'windows-latest' || matrix.platform == 'windows-11-arm'
         shell: powershell
         run: |
           choco install zip -y
@@ -50,25 +136,71 @@ jobs:
         run: |
           cp conan-profiles/CI-CD/Windows-ARM64_profile.txt $CONAN_HOME/profiles/default
 
-      - name: Install MacOS dependencies <x86_64>
-        if: matrix.platform == 'macos-15-intel'
-        shell: bash
+      - name: Install Dependencies through Conan on Windows
+        shell: powershell
         run: |
-          brew install conan
-          conan --version
-          mkdir -p ~/.conan2/profiles/
-          touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
-          cp conan-profiles/CI-CD/MacOS-AMD64_profile.txt ~/.conan2/profiles/default
+          conan install . --output-folder build --build=missing -o include_messaging=False
 
-      - name: Install MacOS dependencies <ARM>
-        if: matrix.platform == 'macos-latest'
+      - name: Build Windows
+        shell: powershell
+        run: |
+          cd build
+          ./conanbuild.ps1
+          cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release
+          cmake --build . --config Release
+
+      - name: Test Windows
+        run: |
+          cd build
+          ctest -VV
+          ./bin/SundialsSolverStandalone_x64 || true
+
+      - name: Make Windows Shared Object Paths Relative
         shell: bash
         run: |
-          brew install conan
-          conan --version
-          mkdir -p ~/.conan2/profiles/
-          touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
-          cp conan-profiles/CI-CD/MacOS-ARM64_profile.txt ~/.conan2/profiles/default
+          mkdir build/upload
+          cd build/bin
+          rm unit_tests* *.pdb || true
+          ls *.exe | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
+          # Currently, Sundials only requires system32 dlls! 
+          # ls *.dll | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
+          # ls *.dll | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
+          chmod u+w,+x *
+          zip ../upload/win64.zip ./*
+          cd ../..
+          # fi
+
+      - name: Upload Windows (x86_64) binaries
+        if: matrix.platform == 'windows-latest'
+        uses: actions/upload-artifact@v4
+        with:
+          name: win64_x86_64
+          path: build/upload/win64.zip
+
+      - name: Upload Windows (ARMv8) binaries
+        if: matrix.platform == 'windows-11-arm'
+        uses: actions/upload-artifact@v4
+        with:
+          name: win64_arm64
+          path: build/upload/win64.zip
+
+      - name: Setup tmate session
+        if: ${{ failure() }}
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: false
+
+  GNULinux:
+    name: native-build-${{ matrix.platform }}
+    runs-on: ${{ matrix.platform }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ ubuntu-latest, ubuntu-24.04-arm ]
+
+    steps:
+      - name: checkout vcell-ode repo
+        uses: actions/checkout@v4
 
       - name: Install Linux Dependencies <x86_64>
         if: matrix.platform == 'ubuntu-latest'
@@ -94,17 +226,6 @@ jobs:
           touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
           cp conan-profiles/CI-CD/Linux-ARM64_profile.txt ~/.conan2/profiles/default
 
-      - name: Install Dependencies through Conan on Windows
-        if: matrix.platform == 'windows-latest' || matrix.platform == 'windows-11-arm'
-        shell: powershell
-        run: |
-          conan install . --output-folder build --build=missing -o include_messaging=False
-
-      - name: Install Dependencies through Conan on MacOS
-        if: matrix.platform == 'macos-latest' || matrix.platform == 'macos-15-intel'
-        shell: bash
-        run: |
-          conan install . --output-folder build --build=missing
 
       - name: Install Dependencies through Conan on Linux <x86_64>
         if: matrix.platform == 'ubuntu-latest'
@@ -130,17 +251,7 @@ jobs:
           sudo ln -s $(which mold) /usr/bin/ld
           conan install . --output-folder build --build=missing
 
-      - name: Build Windows
-        if: matrix.platform == 'windows-latest' || matrix.platform == 'windows-11-arm'
-        shell: powershell
-        run: |
-          cd build
-          ./conanbuild.ps1
-          cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release
-          cmake --build . --config Release
-
-      - name: Build Non-Intel-Mac Unix
-        if: matrix.platform == 'ubuntu-latest' || matrix.platform == 'ubuntu-24.04-arm' || matrix.platform == 'macos-15-intel' || matrix.platform == 'macos-latest'
+      - name: Build Linux
         run: |
           echo "working dir is $PWD"
           cd build
@@ -148,62 +259,22 @@ jobs:
           cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release
           cmake --build . --config Release
 
-      - name: Test Windows
-        if: matrix.platform == 'windows-latest' || matrix.platform == 'windows-11-arm'
-        run: |
-          cd build
-          ctest -VV
-          ./bin/SundialsSolverStandalone_x64 || true
-
-      - name: Test Unix
-        if: matrix.platform == 'ubuntu-latest' || matrix.platform == 'ubuntu-24.04-arm' || matrix.platform == 'macos-15-intel' || matrix.platform == 'macos-latest'
+      - name: Test Linux
         run: |
           cd build
 
           ctest -VV
-          
+
           echo "------ running SundialsSolverStandalone_x64 ------"
           ./bin/SundialsSolverStandalone_x64 || true
 
 
-      - name: fix Macos shared object paths
-        if: matrix.platform == 'macos-15-intel' || matrix.platform == 'macos-latest'
+      - name: Make Linux Shared Object Paths Relative
         shell: bash
         run: |
           mkdir build/upload
           cd build/bin
-          rm hello_test TestVCellStoch testzip ziptool || true
-          ls *_x64   | awk '{print $1}' | xargs -I '{}' otool -L '{}' | grep ")" | grep -v "build" | grep -v "System" | awk '{print $1}' | xargs -I '{}' cp -vn '{}' . || true
-          ls *.dylib | awk '{print $1}' | xargs -I '{}' otool -L '{}' | grep ")" | grep -v "build" | grep -v "System" | awk '{print $1}' | xargs -I '{}' cp -vn '{}' . || true
-          ls *.dylib | awk '{print $1}' | xargs -I '{}' otool -L '{}' | grep ")" | grep -v "build" | grep -v "System" | awk '{print $1}' | xargs -I '{}' cp -vn '{}' . || true
-          chmod u+w,+x *
-          tar czvf ../upload/mac64_bad_paths.tgz .
-          ../../.github/scripts/install_name_tool_macos.sh
-          tar czvf ../upload/mac64.tgz --dereference .
-
-      - name: handle shared object paths for Windows native build
-        if: matrix.platform == 'windows-latest' || matrix.platform == 'windows-11-arm'
-        shell: bash
-        run: |
-          mkdir build/upload
-          cd build/bin
-          rm hello_test* *.pdb || true
-          ls *.exe | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
-          # Currently, Sundials only requires system32 dlls! 
-          # ls *.dll | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
-          # ls *.dll | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
-          chmod u+w,+x *
-          zip ../upload/win64.zip ./*
-          cd ../..
-          # fi
-
-      - name: handle shared object paths for Linux native build
-        if: matrix.platform == 'ubuntu-latest' || matrix.platform == 'ubuntu-24.04-arm'
-        shell: bash
-        run: |
-          mkdir build/upload
-          cd build/bin
-          rm hello_test TestVCellStoch testzip ziptool || true
+          rm unit_tests
           ls *_x64   | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep "=> /" | grep -v "build" | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
           ls *.so    | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep "=> /" | grep -v "build" | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
           ls *.so    | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep "=> /" | grep -v "build" | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
@@ -211,47 +282,115 @@ jobs:
           tar czvf ../upload/linux64.tgz --dereference .
           cd ../..
 
-      - name: Upload Intel Macos binaries
-        if: matrix.platform == 'macos-15-intel'
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos_x86_64.tgz
-          path: build/upload/mac64.tgz
-
-      - name: Upload ARM Macos binaries
-        if: matrix.platform == 'macos-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos_arm64.tgz
-          path: build/upload/mac64.tgz
-
-      - name: Upload Windows (x86_64) binaries
-        if: matrix.platform == 'windows-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: win64_x86_64.zip
-          path: build/upload/win64.zip
-
-      - name: Upload Windows (ARMv8) binaries
-        if: matrix.platform == 'windows-11-arm'
-        uses: actions/upload-artifact@v4
-        with:
-          name: win64_arm64.zip
-          path: build/upload/win64.zip
-
       - name: Upload Linux (x86_64) binaries
         if: matrix.platform == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
-          name: linux64_x86_64.tgz
+          name: linux64_x86_64
           path: build/upload/linux64.tgz
 
       - name: Upload Linux (ARMv8) binaries
         if: matrix.platform == 'ubuntu-24.04-arm'
         uses: actions/upload-artifact@v4
         with:
-          name: linux64_arm64.tgz
+          name: linux64_arm64
           path: build/upload/linux64.tgz
+
+      - name: Setup tmate session
+        if: ${{ failure() }}
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: false
+
+
+  MacOS-Universal:
+    name: Create Universal macOS Binary
+    runs-on: macos-latest
+    needs:
+      - MacOS
+
+
+    steps:
+      # The binaries are "named" (ID'd) different as artifacts, but not as filenames (`mac64.tgz`).
+      # As soon as we download one of them we need to rename it to avoid overwriting the other one.
+      - name: Download macOS-Arm64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: macos_arm64
+          path: binaries
+
+      - name: Unpack & Rename macOS-Arm64 binary
+        run: |
+          mkdir binaries/arm
+          tar xzvf binaries/mac64.tgz -C binaries/arm
+          rm binaries/mac64.tgz
+
+      - name: Download macOS-x86_64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: macos_x86_64
+          path: binaries
+
+      - name: Unpack & Rename macOS-x86_64 binary
+        run: |
+          mkdir binaries/intel
+          tar xzvf binaries/mac64.tgz -C binaries/intel
+          rm binaries/mac64.tgz
+
+      # this will go in the log of the run, useful for debugging
+      - name: Inspect binaries directory
+        run: |
+          echo "Contents of binaries/:"
+          ls -Rlh binaries/
+
+      # - name: Setup tmate session for inspection
+      #   uses: mxschmitt/action-tmate@v3
+
+      - name: Combine with lipo
+        run: |
+          mkdir binaries/universal
+          for exe in `ls binaries/arm/ | grep ".*x64"`
+          do
+            echo "fixing ${exe}..."
+            lipo  -create binaries/arm/$exe binaries/intel/${exe} \
+                  -output  binaries/universal/${exe}
+          done
+          
+          for dylib in `ls binaries/arm/ | grep ".*\.dylib"`
+          do
+            echo "fixing ${dylib}..."
+            lipo  -create  binaries/arm/$dylib binaries/intel/${dylib} \
+                  -output  binaries/universal/${dylib}
+          done
+          for entry in `ls binaries/universal/`
+          do
+            echo "confirming ${entry}..."
+            lipo -archs binaries/universal/${entry}
+          done
+          mv binaries/universal binaries/mac64
+          tar czvf binaries/macos-universal.tgz binaries/mac64
+
+      - name: Inspect binaries directory
+        run: |
+          echo "Contents of binaries/:"
+          ls -Rlh binaries/
+
+      - name: Upload MacOS (Universal) binaries
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos64_universal
+          path: binaries/macos-universal.tgz
+
+#      - name: Upload universal binary to release
+#        if: github.event_name == 'release'
+#        uses: actions/upload-release-asset@v1
+#        env:
+#          GITHUB_TOKEN: ${{ github.token }}
+#        with:
+#          upload_url: ${{ github.event.release.upload_url }}
+#          asset_path: binaries/macos-universal.tgz
+#          asset_name: macos-universal
+#          asset_content_type: application/octet-stream
 
       - name: Setup tmate session
         if: ${{ failure() }}
