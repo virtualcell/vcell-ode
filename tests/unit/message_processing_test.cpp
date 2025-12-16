@@ -3,12 +3,15 @@
 //
 #include <string>
 #include <vector>
+#include <mutex>
+#include <condition_variable>
 #include <gtest/gtest.h>
 #include <VCELL/MessageEventManager.h>
 
 #include "VCellSundialsSolver.h"
 
 static std::vector<std::string> eventTracker;
+static std::mutex eventTrackerMutex;
 
 void appendNextIndex(const WorkerEvent* event);
 std::vector<std::string> generateFibonacci(int length);
@@ -25,7 +28,9 @@ TEST(MessageProcessingTest, MessagesAreProcessed) {
 			case NUM_ITERATIONS: status = JobEvent::JOB_COMPLETED; break;
 			default: status = JobEvent::JOB_PROGRESS; break;
 		}
+		eventTrackerMutex.lock();
 		eventManager.enqueue(status, (i + 1) / 100.0, i, std::to_string(i).c_str());
+		eventTrackerMutex.unlock();
 	}
 	eventManager.requestStopAndWaitForIt();
 	std::vector<std::string> expectedResults = generateFibonacci(NUM_ITERATIONS);
@@ -33,13 +38,18 @@ TEST(MessageProcessingTest, MessagesAreProcessed) {
 }
 
 void appendNextIndex(const WorkerEvent* event) {
-	if (eventTracker.empty()) { eventTracker.emplace_back("0"); return; }
-	if (1 == eventTracker.size()) { eventTracker.emplace_back("1"); return; }
-
-	const long firstValue = std::stol(eventTracker[eventTracker.size() - 2]);
-	const long secondValue = std::stol(eventTracker[eventTracker.size() - 1]);
-	const std::string nextValue{std::to_string(firstValue + secondValue)};
-	eventTracker.push_back(nextValue);
+	eventTrackerMutex.lock();
+	if (eventTracker.empty()) {
+		eventTracker.emplace_back("0");
+	} else if (1 == eventTracker.size()) {
+		eventTracker.emplace_back("1");
+	} else {
+		const long firstValue = std::stol(eventTracker[eventTracker.size() - 2]);
+		const long secondValue = std::stol(eventTracker[eventTracker.size() - 1]);
+		const std::string nextValue{std::to_string(firstValue + secondValue)};
+		eventTracker.push_back(nextValue);
+	}
+	eventTrackerMutex.unlock();
 }
 
 std::vector<std::string> generateFibonacci(const int length) {

@@ -83,8 +83,10 @@ void MessageEventManager::processQueue() {
 				// Wait for the worker to be "prodded" (via `needMessagingForeman.notify_one()`), AND the event queue is not empty
 				// Note that this `wait()` call, by design, unlocks the queue mutex, until it is "prodded".
 				this->needMessageProcessingForeman.wait(shouldBeActiveLock);
+				std::unique_lock stopRequestedLock{this->stopRequestedMutex};
 				if (this->eventQueue.empty()) continue; // Probably means we need to check if stop was requested again
 			}
+			std::unique_lock stopRequestedLock{this->stopRequestedMutex};
 			event = this->eventQueue.front();
 			this->eventQueue.pop();
 		}// END Clock-out Scope  //
