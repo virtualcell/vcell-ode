@@ -42,6 +42,7 @@ class MessageEventManager {
 		bool stopWasCalled();
 
 	private:
+		void performQueueProcessing();
 		void processQueue();
 		void processEvent(WorkerEvent* event);
 		void enqueue(WorkerEvent*);

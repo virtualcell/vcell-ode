@@ -4,11 +4,14 @@
 #include <VCELL/MessageEventManager.h>
 #include <iostream>
 #include <utility>
+#include <format>
+#include <exception>
+#include <system_error>
 
 MessageEventManager::MessageEventManager(std::function<void(WorkerEvent*)> sendUpdateFunction):
 		stopRequested{false},
 		sendUpdateFunction{std::move(sendUpdateFunction)},
-		eventQueueProcessingWorkerThread([this]() {this->processQueue();}) // Should auto-start thread
+		eventQueueProcessingWorkerThread([this]() {this->performQueueProcessing();}) // Should auto-start thread
 {
 
 }
@@ -32,6 +35,7 @@ void MessageEventManager::enqueue(const JobEvent::Status status, const char *eve
 
 void MessageEventManager::requestStopAndWaitForIt() {
 	std::unique_lock stopRequestedLock{this->stopRequestedMutex};
+	if (this->stopRequested) return;
 	this->stopRequested = true;
 	this->needMessageProcessingForeman.notify_all();
 	this->requestedStopForeman.wait(stopRequestedLock, [this]()->bool{return this->eventQueue.empty();});
@@ -46,6 +50,18 @@ bool MessageEventManager::stopWasCalled() {
 ///////////////////////////////////////////////////
 ///				Private Methods					///
 ///////////////////////////////////////////////////
+
+void MessageEventManager::performQueueProcessing() {
+	try {
+		processQueue();
+	} catch (std::system_error e) {
+		std::cerr << std::format("System Error (Code {} - {}): {}", std::to_string(e.code().value()), e.code().category().name(), e.what()) << std::endl;
+	} catch (std::exception& e) {
+		std::cerr << e.what() << std::endl;
+	} catch (...) {
+		std::cerr << "An unknown exception occurred while processing the event queue!" << std::endl;
+	}
+}
 
 void MessageEventManager::processQueue() {
 	while (true) {
