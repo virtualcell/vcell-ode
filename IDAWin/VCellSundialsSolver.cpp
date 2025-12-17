@@ -613,7 +613,9 @@ double VCellSundialsSolver::getNextEventTime() {
 
 void VCellSundialsSolver::checkStopRequested(double time, long numIterations) {
 	#ifdef USE_MESSAGING
-	if (SimulationMessaging::getInstVar()->isStopRequested()) { throw StoppedByUserException("stopped by user"); }
+	auto instVar = SimulationMessaging::getInstVar();
+	if (nullptr == instVar) return;
+	if (instVar->isStopRequested()) { throw StoppedByUserException("stopped by user"); }
 	#endif
 }
 

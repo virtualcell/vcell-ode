@@ -109,12 +109,6 @@ VCellSolverInputBreakdown VCellSolverFactory::parseInputFile(std::ifstream& inpu
 		else throw VCell::Exception("Unexpected token \"" + nextToken + "\" in the input file!");
 
 	}
-
-
-	#ifdef USE_MESSAGING
-	// Since messaging assumes we have a job requiring messaging, we should initialize a "default" messaging handler
-	if (NULL == SimulationMessaging::getInstVar()) SimulationMessaging::create();
-	#endif
 	return inputBreakdown;
 }
 
@@ -469,8 +463,10 @@ static void loadJMSInfo(std::istream &ifsInput, int taskID) {
 	}
 
 	#ifdef USE_MESSAGING
-	SimulationMessaging::create(broker.c_str(), smqUserName.c_str(),
-								password.c_str(), qName.c_str(), topicName.c_str(),
-								vCellUsername.c_str(), simKey, jobIndex, taskID);
+	// SimulationMessaging::getInstVar()->initialize_curl_messaging(broker.c_str(), smqUserName.c_str(),
+	// 							password.c_str(), qName.c_str(), topicName.c_str(),
+	// 							vCellUsername.c_str(), simKey, jobIndex, taskID);
+	SimulationMessaging::getInstVar()->initialize_curl_messaging(false, broker.c_str(),
+		vCellUsername.c_str(), simKey, jobIndex, taskID);
 	#endif
 }

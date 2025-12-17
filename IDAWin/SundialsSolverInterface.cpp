@@ -79,10 +79,7 @@ void activateSolver(std::ifstream& inputFileStream, FILE* outputFile, int taskID
 	}
 
 	// cleanup
-	if (SimulationMessaging::getInstVar() != nullptr) {
-		SimulationMessaging::getInstVar()->waitUntilFinished();
-		delete SimulationMessaging::getInstVar();
-	}
+	SimulationMessaging::cleanupInstanceVar();
 
 	if (!errorMsg.empty()) errExit(returnCode, errorMsg);
 }
