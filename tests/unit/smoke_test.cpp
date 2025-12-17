@@ -16,8 +16,7 @@
 
 void compare(const std::filesystem::path& file1, const std::filesystem::path& file2, float tolerance);
 
-TEST(SmokeTest, UserProvidesFilesWithoutJMS) {
-	constexpr int taskID = -1, hashID = 1489333437;
+void performSmokeTest(const int taskID, const int hashID) {
 	const std::filesystem::path RESOURCE_DIRECTORY{RESOURCE_DIR};
 	const std::filesystem::path OUTPUT_TARGET{RESOURCE_DIRECTORY /std::format("SimID_{}_0_.ida", hashID)};
 	const std::array NECESSARY_FILES{
@@ -36,36 +35,31 @@ TEST(SmokeTest, UserProvidesFilesWithoutJMS) {
 		throw std::runtime_error("Could not open output file[" + OUTPUT_TARGET.string() + "] for writing.");
 	}
 
-	activateSolver(inputFileStream, outputFile, taskID);
+	try {
+		activateSolver(inputFileStream, outputFile, taskID);
+	} catch (const std::exception& e) {
+		std::cerr << "Error caught in test: " << e.what() << std::endl;
+		exit(EXIT_FAILURE);
+	}
 	fclose(outputFile);
 
 	compare(OUTPUT_TARGET, NECESSARY_FILES[1], 1e-7);
 }
 
+TEST(SmokeTest, UserProvidesFilesWithoutJMS) {
+	constexpr int taskID = -1, hashID = 1489333437;
+	performSmokeTest(taskID, hashID);
+}
+
 TEST(SmokeTest, UserProvidesFilesWithJMS) {
-	constexpr int taskID = 2025, hashID = 256118677;
-	const std::filesystem::path RESOURCE_DIRECTORY{RESOURCE_DIR};
-	const std::filesystem::path OUTPUT_TARGET{RESOURCE_DIRECTORY /std::format("SimID_{}_0_.ida", hashID)};
-	const std::array NECESSARY_FILES{
-		RESOURCE_DIRECTORY /std::format("SimID_{}_0_.cvodeInput", hashID),
-		RESOURCE_DIRECTORY /std::format("SimID_{}_0_.ida.expected", hashID)
-	};
-	for (const auto& file : NECESSARY_FILES) {
-		assert(std::filesystem::exists(file));
-	}
-	FILE *outputFile = NULL;
-	std::ifstream inputFileStream{NECESSARY_FILES[0]};
-	if (!inputFileStream.is_open()) { throw std::runtime_error("input file [" + NECESSARY_FILES[0].string() + "] doesn't exit!"); }
+	constexpr int taskID = 2025;
+	#ifdef TEST_WITH_LOCALHOST
+	constexpr int hashID = 886118677;
+	#else
+	constexpr int hashID = 256118677;
+	#endif
 
-	// Open the output file...
-	if (NULL == (outputFile = fopen(OUTPUT_TARGET.string().c_str(), "w"))) {
-		throw std::runtime_error("Could not open output file[" + OUTPUT_TARGET.string() + "] for writing.");
-	}
-
-	activateSolver(inputFileStream, outputFile, taskID);
-	fclose(outputFile);
-
-	compare(OUTPUT_TARGET, NECESSARY_FILES[1], 1e-7);
+	performSmokeTest(taskID, hashID);
 }
 
 void compare(const std::filesystem::path& file1, const std::filesystem::path& file2, float tolerance) {

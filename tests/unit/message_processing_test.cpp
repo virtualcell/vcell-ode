@@ -3,53 +3,81 @@
 //
 #include <string>
 #include <vector>
-#include <mutex>
-#include <condition_variable>
+// #include <mutex>
+// #include <condition_variable>
+#include <exception>
+#include <unordered_map>
 #include <gtest/gtest.h>
 #include <VCELL/MessageEventManager.h>
 
 #include "VCellSundialsSolver.h"
 
 static std::vector<std::string> eventTracker;
-static std::mutex eventTrackerMutex;
+
 
 void appendNextIndex(const WorkerEvent* event);
 std::vector<std::string> generateFibonacci(int length);
 long sequenceComparison(const std::vector<std::string> &sequence1, const std::vector<std::string> &sequence2);
 
-TEST(MessageProcessingTest, MessagesAreProcessed) {
+static std::unordered_map<std::__thread_id, std::string> nameMap;
 
-	MessageEventManager eventManager{[](WorkerEvent* event)->void{appendNextIndex(event);}};
-	const int NUM_ITERATIONS = 100;
-	for (int i = 0; i < NUM_ITERATIONS; ++i) {
-		JobEvent::Status status;
-		switch (i + 1) {
-			case 1: status = JobEvent::JOB_STARTING; break;
-			case NUM_ITERATIONS: status = JobEvent::JOB_COMPLETED; break;
-			default: status = JobEvent::JOB_PROGRESS; break;
+// std::mutex& getMeyersMutex() {
+// 	static std::mutex eventMutex;
+// 	return eventMutex;
+// }
+
+TEST(MessageProcessingTest, MessagesAreProcessed) {
+	try {
+		nameMap[std::this_thread::get_id()] = "Main Thread";
+		MessageEventManager eventManager{[](WorkerEvent* event)->void{appendNextIndex(event);}};
+		const int NUM_ITERATIONS = 100;
+		for (int i = 0; i < NUM_ITERATIONS; ++i) {
+			//std::cerr << "Main PID = " << getpid() << "\n";
+			JobEvent::Status status;
+			switch (i + 1) {
+				case 1: status = JobEvent::JOB_STARTING; break;
+				case NUM_ITERATIONS: status = JobEvent::JOB_COMPLETED; break;
+				default: status = JobEvent::JOB_PROGRESS; break;
+			}
+			//std::cerr << "Locking mutex at " << &getMeyersMutex << " on thread " << nameMap[std::this_thread::get_id()] << "\n";
+			// getMeyersMutex().lock();//eventTrackerMutex->lock();
+			//std::cerr << "Obtained mutex at " << &getMeyersMutex << " on thread " << nameMap[std::this_thread::get_id()] << "\n";
+			eventManager.enqueue(status, (i + 1) / 100.0, i, std::to_string(i).c_str());
+			//std::cerr << "Unlocking mutex at " << &getMeyersMutex << " on thread " << nameMap[std::this_thread::get_id()] << "\n";
+			// getMeyersMutex().unlock();//eventTrackerMutex->unlock();
 		}
-		eventTrackerMutex.lock();
-		eventManager.enqueue(status, (i + 1) / 100.0, i, std::to_string(i).c_str());
-		eventTrackerMutex.unlock();
+		eventManager.requestStopAndWaitForIt();
+		std::vector<std::string> expectedResults = generateFibonacci(NUM_ITERATIONS);
+		// delete eventTrackerMutex;
+		ASSERT_TRUE(!sequenceComparison(eventTracker, expectedResults));
+	} catch (const std::exception& e) {
+		std::cerr << "Caught exception in main test body: " << e.what() << std::endl;
 	}
-	eventManager.requestStopAndWaitForIt();
-	std::vector<std::string> expectedResults = generateFibonacci(NUM_ITERATIONS);
-	ASSERT_TRUE(!sequenceComparison(eventTracker, expectedResults));
 }
 
 void appendNextIndex(const WorkerEvent* event) {
-	eventTrackerMutex.lock();
-	if (eventTracker.empty()) {
-		eventTracker.emplace_back("0");
-	} else if (1 == eventTracker.size()) {
-		eventTracker.emplace_back("1");
-	} else {
-		const long firstValue = std::stol(eventTracker[eventTracker.size() - 2]);
-		const long secondValue = std::stol(eventTracker[eventTracker.size() - 1]);
-		const std::string nextValue{std::to_string(firstValue + secondValue)};
-		eventTracker.push_back(nextValue);
+	//std::cerr << "Event PID = " << getpid() << "\n";
+	if (!nameMap.contains(std::this_thread::get_id())) nameMap[std::this_thread::get_id()] = "Event Thread";
+	try {
+		//std::cerr << "Locking mutex at " << &getMeyersMutex << " on thread " << nameMap[std::this_thread::get_id()] << "\n";
+		// getMeyersMutex().lock();//eventTrackerMutex->lock();
+		//std::cerr << "Obtained mutex at " << &getMeyersMutex << " on thread " << nameMap[std::this_thread::get_id()] << "\n";
+		if (eventTracker.empty()) {
+			eventTracker.emplace_back("0");
+		} else if (1 == eventTracker.size()) {
+			eventTracker.emplace_back("1");
+		} else {
+			const long firstValue = std::stol(eventTracker[eventTracker.size() - 2]);
+			const long secondValue = std::stol(eventTracker[eventTracker.size() - 1]);
+			const std::string nextValue{std::to_string(firstValue + secondValue)};
+			eventTracker.push_back(nextValue);
+		}
+		//std::cerr << "Unlocking mutex at " << &getMeyersMutex << " on thread " << nameMap[std::this_thread::get_id()] << "\n";
+		// getMeyersMutex().unlock();//eventTrackerMutex->unlock();
+	} catch (const std::exception& e) {
+		std::cerr << "Caught exception in event loop: " << e.what() << std::endl;
+		exit(2);
 	}
-	eventTrackerMutex.unlock();
 }
 
 std::vector<std::string> generateFibonacci(const int length) {
