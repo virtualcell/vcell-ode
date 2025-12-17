@@ -3,7 +3,7 @@
 #  Top Level CMake File
 #
 ##############################################
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.16)
 project(vcell-ode-numerics)
 set(CMAKE_CXX_STANDARD 20)
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")

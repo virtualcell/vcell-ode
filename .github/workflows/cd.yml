@@ -368,7 +368,8 @@ jobs:
             lipo -archs binaries/universal/${entry}
           done
           mv binaries/universal binaries/mac64
-          tar czvf binaries/macos-universal.tgz binaries/mac64
+          cd binaries
+          tar czvf macos-universal.tgz mac64
 
       - name: Inspect binaries directory
         run: |
