@@ -33,10 +33,8 @@ static constexpr int Message_DEFAULT_PRIORITY = 0;
 //TODO: Re-write so that there is a messaging handler abstract class with two children: stdOut and CUrl
 class SimulationMessaging {
 	public:
-	    virtual ~SimulationMessaging() noexcept;
-		static void initialize();
-		static SimulationMessaging* create();
 		static SimulationMessaging* getInstVar();
+		static void cleanupInstanceVar();
 		void setWorkerEvent(JobEvent::Status status, const char *eventMessage);
 		void setWorkerEvent(JobEvent::Status status, double progress, double timepoint);
 		void setWorkerEvent(JobEvent::Status status, double progress, double timepoint, const char *eventMessage);
@@ -54,10 +52,11 @@ class SimulationMessaging {
 		}
 		void waitUntilFinished();
 		#ifdef USE_MESSAGING
-		static SimulationMessaging* create(const char* broker, const char* smqusername, const char* passwd, const char* qname, const char* tname,
-				const char* vcusername, int simKey, int jobIndex, int taskID, int ttl_low=DEFAULT_TTL_LOW, int ttl_high=DEFAULT_TTL_HIGH);
-		friend void* startMessagingThread(void* param);
+		void initialize_curl_messaging(bool alsoPrintToStdOut, const char* broker, const char* vcusername, int simKey, int jobIndex, int taskID, int ttl_low=DEFAULT_TTL_LOW, int ttl_high=DEFAULT_TTL_HIGH);
 		#endif
+
+	protected:
+		virtual ~SimulationMessaging() noexcept;
 
 	private:
 		// Statics
@@ -78,9 +77,6 @@ class SimulationMessaging {
 		static bool isInitialized;
 
 		SimulationMessaging();
-		#ifdef USE_MESSAGING
-		SimulationMessaging(const char* broker, const char* vcusername, int simKey, int jobIndex,  int taskID, int ttl_low=DEFAULT_TTL_LOW, int ttl_high=DEFAULT_TTL_HIGH);
-		#endif
 
 		void sendStatus(WorkerEvent*);
 		void keepAlive();

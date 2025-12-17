@@ -47,17 +47,18 @@ class MessageEventManager {
 		void processEvent(WorkerEvent* event);
 		void enqueue(WorkerEvent*);
 
-		std::mutex timeClockMutex;
+		std::thread eventQueueProcessingWorkerThread; //TODO: make a `std::jthread` once compilers catch up with standard
+		std::function<void(WorkerEvent*)> sendUpdateFunction;
 
+		// Critical Resources / Regions
+		// -> CR #1 - Whether stop has been requested or not
 		bool stopRequested;
 		std::condition_variable requestedStopForeman;
 		std::mutex stopRequestedMutex;
+		// -> CR #2 - The Event Queue
 		std::queue<WorkerEvent*> eventQueue;
+		std::condition_variable eventQueueForeman;
 		std::mutex queuetex;
-
-		std::thread eventQueueProcessingWorkerThread; //TODO: make a `std::jthread` once compilers catch up with standard
-		std::condition_variable needMessageProcessingForeman;
-		std::function<void(WorkerEvent*)> sendUpdateFunction;
 };
 
 #endif //VCELL_ODE_NUMERICS_MESSAGEEVENTQUEUE_H

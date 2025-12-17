@@ -4,50 +4,37 @@
 #include <string>
 #include <format>
 
-
-
-static const double WORKEREVENT_MESSAGE_MIN_TIME_SECONDS = 15.0;
+static constexpr double WORKEREVENT_MESSAGE_MIN_TIME_SECONDS = 15.0;
 bool SimulationMessaging::isInitialized = false;
 
 
-SimulationMessaging *SimulationMessaging::m_inst = NULL;
+SimulationMessaging *SimulationMessaging::m_inst = nullptr;
 
 SimulationMessaging::SimulationMessaging():
 	eventHandler(std::bind(&SimulationMessaging::sendStatus, this, std::placeholders::_1)),
+	workerEventOutputMode{WORKEREVENT_OUTPUT_MODE_STDOUT},
 	taskID{-1},
-	m_jobIndex{-1}
-{
-	this->taskID = -1;
-	this->workerEventOutputMode = WORKEREVENT_OUTPUT_MODE_STDOUT;
-	this->curlHandler = new NullCurlProxy();
-
-}
-
-#ifdef USE_MESSAGING
-SimulationMessaging::SimulationMessaging(const char* broker, const char* vcusername, int simKey, int jobIndex, int taskID, int ttl_low, int ttl_high):
-	eventHandler(std::bind(&SimulationMessaging::sendStatus, this, std::placeholders::_1)),
-	workerEventOutputMode{WORKEREVENT_OUTPUT_MODE_MESSAGING},
-	taskID{taskID},
-	m_jobIndex{jobIndex},
+	m_jobIndex{-1},
 	bNewWorkerEvent{false}
 {
-	this->curlHandler = new CurlProxy(simKey, taskID, jobIndex, vcusername, broker, ttl_low, ttl_high);
+	this->curlHandler = new NullCurlProxy();
 	time(&this->lastSentEventTime);
 }
-#endif
 
 SimulationMessaging::~SimulationMessaging() noexcept{
 	delete this->curlHandler;
 }
 
 SimulationMessaging* SimulationMessaging::getInstVar() {
+	if (nullptr == SimulationMessaging::m_inst) SimulationMessaging::m_inst = new SimulationMessaging();
 	return SimulationMessaging::m_inst;
 }
 
-SimulationMessaging* SimulationMessaging::create(){
-	if (SimulationMessaging::m_inst == NULL) SimulationMessaging::m_inst = new SimulationMessaging();
-
-    return SimulationMessaging::m_inst;
+void SimulationMessaging::cleanupInstanceVar() {
+	if (nullptr == SimulationMessaging::m_inst) return;
+	SimulationMessaging::m_inst->waitUntilFinished();
+	delete SimulationMessaging::m_inst;
+	SimulationMessaging::m_inst = nullptr;
 }
 
 void SimulationMessaging::sendStatus(WorkerEvent* event) {
@@ -132,26 +119,16 @@ void SimulationMessaging::setWorkerEvent(JobEvent::Status status, const double p
 
 void SimulationMessaging::waitUntilFinished() {
 	this->eventHandler.requestStopAndWaitForIt();
-	// if (workerEventOutputMode == WORKEREVENT_OUTPUT_MODE_STDOUT) return;
-	// #ifdef USE_MESSAGING
-	// std::cout << "!!!waiting for thread to exit" << std::endl;
-	// pthread_join(newWorkerEventThread, NULL);
-	// std::cout << "!!Threads joined successfully" << std::endl;
-	// #endif
 }
 
 #ifdef USE_MESSAGING
 
-SimulationMessaging* SimulationMessaging::create(const char* broker, const char* smqusername, const char* passwd, const char* qname, const char* tname, const char* vcusername, int simKey, int jobIndex, int taskID, int ttl_low, int ttl_high){
-	if (m_inst != NULL && m_inst->workerEventOutputMode == WORKEREVENT_OUTPUT_MODE_STDOUT) {
-		delete m_inst;
-		m_inst = NULL;
-	}
-	if (m_inst == NULL){    
-        m_inst = new SimulationMessaging(broker, vcusername, simKey, jobIndex, taskID, ttl_low, ttl_high);
-	}
-
-    return(m_inst);
+void SimulationMessaging::initialize_curl_messaging(bool alsoPrintToStdOut, const char* broker, const char* vcusername, int simKey, int jobIndex, int givenTaskID, int ttl_low, int ttl_high){
+	this->workerEventOutputMode = alsoPrintToStdOut ? WORKEREVENT_OUTPUT_MODE_ALL : WORKEREVENT_OUTPUT_MODE_MESSAGING;
+	this->taskID = givenTaskID;
+	this->m_jobIndex = jobIndex;
+	delete this->curlHandler; // get rid of the null one we make by default
+	this->curlHandler = new CurlProxy(simKey, taskID, jobIndex, vcusername, broker, ttl_low, ttl_high);
 }
 
 // void SimulationMessaging::start() {

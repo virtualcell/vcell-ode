@@ -10,10 +10,9 @@
 
 MessageEventManager::MessageEventManager(std::function<void(WorkerEvent*)> sendUpdateFunction):
 		stopRequested{false},
-		sendUpdateFunction{std::move(sendUpdateFunction)},
-		eventQueueProcessingWorkerThread([this]() {this->performQueueProcessing();}) // Should auto-start thread
+		sendUpdateFunction{std::move(sendUpdateFunction)}
 {
-
+	this->eventQueueProcessingWorkerThread = std::thread([this]() {this->performQueueProcessing();}); // Should auto-start thread
 }
 
 MessageEventManager::~MessageEventManager() {
@@ -37,14 +36,16 @@ void MessageEventManager::requestStopAndWaitForIt() {
 	std::unique_lock stopRequestedLock{this->stopRequestedMutex};
 	if (this->stopRequested) return;
 	this->stopRequested = true;
-	this->needMessageProcessingForeman.notify_all();
-	this->requestedStopForeman.wait(stopRequestedLock, [this]()->bool{return this->eventQueue.empty();});
+	this->eventQueueForeman.notify_all(); // We want any sleeping workers to wake up, so they check if a stop was requested.
+	this->requestedStopForeman.wait(stopRequestedLock, [this]()->bool {
+		std::unique_lock queueLock{this->queuetex};
+		return this->eventQueue.empty();
+	});
 }
 
 bool MessageEventManager::stopWasCalled() {
 	std::unique_lock stopRequestedLock{this->stopRequestedMutex};
 	return this->stopRequested;
-
 }
 
 ///////////////////////////////////////////////////
@@ -66,35 +67,27 @@ void MessageEventManager::performQueueProcessing() {
 void MessageEventManager::processQueue() {
 	while (true) {
 		WorkerEvent* event;
-		{// START Clock-out Scope //
-			// The order of the locks is important! See Header File
-			std::unique_lock checkIfTheresWorkLock{this->timeClockMutex}; // This is to prevent loop processing while `enqueue` is being called
+		{// START Queuetex Scope //
 			std::unique_lock shouldBeActiveLock(this->queuetex);
 			if (this->eventQueue.empty()) {
 				{ // START stop-requested Scope
 					std::unique_lock stopRequestedLock{this->stopRequestedMutex};
 					if (this->stopRequested) {
-						this->requestedStopForeman.notify_all();
-						return; // We're all done; since this should be done on a jthread, this should also trigger a join.
+						this->requestedStopForeman.notify_all(); // Tell all stop-requesters that we've registered a stop.
+						return; // We're all done
 					}
 				} // END stop-requested Scope
-				checkIfTheresWorkLock.unlock(); // Need to allow enqueuing, can't do that with this locked, and we can't rescope but unique_lock order matters above!
-				// The worker can stop working, and "get some sleep"
-				// Wait for the worker to be "prodded" (via `needMessagingForeman.notify_one()`), AND the event queue is not empty
-				// Note that this `wait()` call, by design, unlocks the queue mutex, until it is "prodded".
-				this->needMessageProcessingForeman.wait(shouldBeActiveLock);
-				std::unique_lock stopRequestedLock{this->stopRequestedMutex};
+				// If the code gets to here, the worker can stop working, and "get some sleep"
+				this->eventQueueForeman.wait(shouldBeActiveLock); // Note that this `wait()` call, by design, unlocks the queue mutex, until it is "prodded".
 				if (this->eventQueue.empty()) continue; // Probably means we need to check if stop was requested again
 			}
-			std::unique_lock stopRequestedLock{this->stopRequestedMutex};
 			event = this->eventQueue.front();
 			this->eventQueue.pop();
-		}// END Clock-out Scope  //
+		}// END Queuetex Scope  //
 
 		// Process Event
 		this->processEvent(event);
-		// Remember to delete the event! We need the memory back!
-		delete event;
+		delete event; // Remember to delete the event! We need the memory back!
 	}
 }
 
@@ -103,19 +96,13 @@ void MessageEventManager::processEvent(WorkerEvent* event) {
 }
 
 void MessageEventManager::enqueue(WorkerEvent* event) {
-	// The order of the locks is important! See Header File
-	std::lock_guard workerIsActiveLock{this->timeClockMutex}; // Need to lock to prevent worker from "clocking out" while we set this up
+	std::lock_guard workerIsActiveLock{this->queuetex}; // Need to lock to prevent worker from checking if it has more work while we make the request.
 	std::lock_guard stopRequestedLock{this->stopRequestedMutex}; // We scope this lock to the whole function; "last in the door" policy
 	if (this->stopRequested) {
 		std::cerr << "A new event was added to the messaging queue, but this queue has had `stop` requested!" << std::endl;
 		delete event;
 		return; // note: on this return function scope ends, and thus so too does out function-scoped locks
 	}
-
-	{// START Emplace Scope //
-		std::lock_guard queueLock{this->queuetex};
-		this->eventQueue.emplace(event);
-	}// END Emplace Scope  //
-
-	this->needMessageProcessingForeman.notify_one(); // Nudges one sleeping worker awake. If the worker is awake...this does nothing; as it should.
+	this->eventQueue.emplace(event);
+	this->eventQueueForeman.notify_one(); // Nudges one sleeping worker awake. If the worker is awake...this does nothing; as it should.
 }
