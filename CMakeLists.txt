@@ -4,13 +4,10 @@
 #
 ##############################################
 cmake_minimum_required(VERSION 3.16)
-project(vcell-ode-numerics)
 set(CMAKE_CXX_STANDARD 20)
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
 endif ()
-enable_language(CXX)
-enable_language(C)
 
 #############################################
 #  If this isn't explicitly set in cmake 3.x.x, we get warnings
@@ -26,6 +23,7 @@ endif ()
 #############################################
 #  Declare Options
 ##############################################
+option(OPTION_TARGET_PYTHON_BINDING "build Python bindings" ON)
 option(OPTION_TARGET_MESSAGING "Messaging (requires libcurl)" OFF)
 option(OPTION_TARGET_DOCS "Generate Doxygen documentation" OFF)
 option(OPTION_TEST_WITH_LOCALHOST "Use localhost as server rather than vcell.cam.uchc.edu" OFF)
@@ -41,11 +39,32 @@ if (MINGW)
 	return()
 endif ()
 
+#############################################
+#  Static link check
+##############################################
+
 if (OPTION_STATICALLY_LINK)
 	#set(BUILD_SHARED_LIBS OFF)
 	set(CMAKE_EXE_LINKER_FLAGS "-static")
 else ()
 	#set(BUILD_SHARED_LIBS ON)
+endif ()
+
+#############################################
+#  Python Binding check
+##############################################
+if (OPTION_TARGET_PYTHON_BINDING)
+	project(
+			${SKBUILD_PROJECT_NAME}
+			VERSION ${SKBUILD_PROJECT_VERSION}
+			LANGUAGES CXX C
+	)
+	set(OPTION_TARGET_MESSAGING OFF)
+else()
+	project(
+			vcell-ode-numerics
+			LANGUAGES CXX C
+	)
 endif ()
 
 #############################################
@@ -85,36 +104,38 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules/")
 include(GetGitRevisionDescription)
 git_describe(GIT_DESCRIBE)
 
-set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+if (NOT OPTION_TARGET_PYTHON_BINDING)
+	set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+	set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
 
-#include (VCellCMakeShowVariables.txt)
+	#include (VCellCMakeShowVariables.txt)
 
-if(DEFINED CMAKE_BUILD_TYPE)
-   SET(CMAKE_BUILD_TYPE ${CMAKE_BUILD_TYPE} CACHE STRING "Choose the type of build, options are: None(CMAKE_CXX_FLAGS or CMAKE_C_FLAGS used) Debug Release RelWithDebInfo MinSizeRel.")
-else()
-   SET(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: None(CMAKE_CXX_FLAGS or CMAKE_C_FLAGS used) Debug Release RelWithDebInfo MinSizeRel.")
-endif()
+	if(DEFINED CMAKE_BUILD_TYPE)
+	   SET(CMAKE_BUILD_TYPE ${CMAKE_BUILD_TYPE} CACHE STRING "Choose the type of build, options are: None(CMAKE_CXX_FLAGS or CMAKE_C_FLAGS used) Debug Release RelWithDebInfo MinSizeRel.")
+	else()
+	   SET(CMAKE_BUILD_TYPE Release CACHE STRING "Choose the type of build, options are: None(CMAKE_CXX_FLAGS or CMAKE_C_FLAGS used) Debug Release RelWithDebInfo MinSizeRel.")
+	endif()
 
-                  
-if (${OPTION_TARGET_DOCS})
-#	if (DOXYGEN_FOUND AND ${CMAKE_VERSION} GREATER_EQUAL 3.9)
-#		find_package(Doxygen
-#				REQUIRED dot
-#				OPTIONAL_COMPONENTS mscgen dia)
-#		set(DOXYGEN_GENERATE_HTML YES)
-#		set(DOXYGEN_GENERATE_MAN NO)
-#		doxygen_add_docs(
-#   			doxygen
-#    		${PROJECT_SOURCE_DIR}
-#    		COMMENT "Generate man pages"
-#    	)
-#	else()
-		add_custom_target(graphviz ALL
-                  "${CMAKE_COMMAND}" "--graphviz=dependencies.dot" .
-                  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
-#    endif()
-endif()
+
+	if (${OPTION_TARGET_DOCS})
+	#	if (DOXYGEN_FOUND AND ${CMAKE_VERSION} GREATER_EQUAL 3.9)
+	#		find_package(Doxygen
+	#				REQUIRED dot
+	#				OPTIONAL_COMPONENTS mscgen dia)
+	#		set(DOXYGEN_GENERATE_HTML YES)
+	#		set(DOXYGEN_GENERATE_MAN NO)
+	#		doxygen_add_docs(
+	#   			doxygen
+	#    		${PROJECT_SOURCE_DIR}
+	#    		COMMENT "Generate man pages"
+	#    	)
+	#	else()
+			add_custom_target(graphviz ALL
+					  "${CMAKE_COMMAND}" "--graphviz=dependencies.dot" .
+					  WORKING_DIRECTORY "${CMAKE_BINARY_DIR}")
+	#    endif()
+	endif()
+endif(NOT OPTION_TARGET_PYTHON_BINDING)
 
 if ("${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -stdlib=libc++")
@@ -155,20 +176,21 @@ endif(WIN32)
 # > Homebrew: brew install spdlog
 # > Conan: conan install --requires=spdlog/[*] ( it may be easier just to add to the conan file!)
 # > vcpkg: vcpkg install spdlog
+
 if(NOT TARGET spdlog)
 	# Stand-alone build
 	find_package(spdlog REQUIRED)
 endif()
+if (NOT OPTION_TARGET_PYTHON_BINDING)
+	if (NOT OPTION_TARGET_MESSAGING)
+		set(OPTION_EXE_DIRECTORY "bin" CACHE PATH "installation directory")
+	else (NOT OPTION_TARGET_MESSAGING)
+		set(OPTION_EXE_DIRECTORY "../bin" CACHE PATH "installation directory")
+	endif (NOT OPTION_TARGET_MESSAGING)
 
-if (NOT OPTION_TARGET_MESSAGING)
-	set(OPTION_EXE_DIRECTORY "bin" CACHE PATH "installation directory")
-else (NOT OPTION_TARGET_MESSAGING)
-	set(OPTION_EXE_DIRECTORY "../bin" CACHE PATH "installation directory")
-endif (NOT OPTION_TARGET_MESSAGING)
-
-set(OPTION_LIB_DIRECTORY "lib" CACHE PATH "library directory")
-set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}")
-
+	set(OPTION_LIB_DIRECTORY "lib" CACHE PATH "library directory")
+	set(CMAKE_INSTALL_PREFIX "${CMAKE_BINARY_DIR}")
+endif (NOT OPTION_TARGET_PYTHON_BINDING)
 
 add_definitions(-DUNIX)
 
@@ -237,3 +259,23 @@ if (OPTION_EXTRA_CONFIG_INFO)
 	cmake_print_variables(CMAKE_CPP_COMPILER CMAKE_C_COMPILER CMAKE_CXX_COMPILER)
 endif ()
 
+if (OPTION_TARGET_PYTHON_BINDING)
+	# Find the module development requirements (requires FindPython from 3.17 or
+	# scikit-build-core's built-in backport)
+	find_package(Python REQUIRED COMPONENTS Interpreter Development.Module)
+	find_package(pybind11 CONFIG QUIET)
+	if(NOT pybind11_FOUND)
+		message(STATUS "System pybind11 not found, using bundled version")
+		add_subdirectory(extern/pybind11)
+	endif()
+
+	# Add a library using FindPython's tooling (pybind11 also provides a helper like this)
+	python_add_library(_core MODULE src/main.cpp WITH_SOABI)
+	target_link_libraries(_core PRIVATE IDAWin pybind11::headers)
+	# This is passing in the version as a define just as an example
+	target_compile_definitions(_core PRIVATE VERSION_INFO=${PROJECT_VERSION})
+
+	# The install directory is the output (wheel) directory
+	install(TARGETS _core DESTINATION pyvcell_odesolver)
+
+endif (OPTION_TARGET_PYTHON_BINDING)

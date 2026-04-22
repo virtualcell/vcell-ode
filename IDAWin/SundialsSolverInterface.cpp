@@ -18,6 +18,36 @@
 
 void errExit(int returnCode, const std::string &errorMsg);
 
+std::string version() {
+	return "VCell ODE solver (CVODE/IDA) version " + std::string(g_GIT_DESCRIBE);
+}
+
+int solve(const std::string& inputFilePath, const std::string& outputFilePath, int taskID) {
+	int returnCode = 0;
+	FILE *outputFile = NULL;
+	std::ifstream inputFileStream{inputFilePath};
+	try {
+		if (!inputFileStream.is_open()) { throw std::runtime_error("input file [" + inputFilePath + "] doesn't exit!"); }
+
+		// Open the output file...
+		if ((outputFile = fopen(outputFilePath.c_str(), "w")) == NULL) {
+			throw std::runtime_error("Could not open output file[" + outputFilePath + "] for writing.");
+		}
+		activateSolver(inputFileStream, outputFile, taskID);
+	} catch (const std::runtime_error& err) {
+		std::cerr << err.what() << std::endl;
+		returnCode = 5;
+	} catch (...) {
+		std::cerr << "Unknown exception thrown." << std::endl;
+		returnCode = 255;
+	}
+
+	if (outputFile != NULL) { fclose(outputFile); }
+	if (inputFileStream.is_open()) { inputFileStream.close(); }
+	return returnCode;
+}
+
+
 void activateSolver(std::ifstream& inputFileStream, FILE* outputFile, int taskID) {
 	int returnCode = 0;
 	std::string errorMsg;

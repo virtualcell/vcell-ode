@@ -27,8 +27,6 @@ int parseAndRunWithArgParse(int argc, char *argv[]) {
 	int taskID = -1;
 	std::string inputFilePath;
 	std::string outputFilePath;
-	std::string errMsg;
-	int returnCode = 0;
 
 	argparse::ArgumentParser argumentParser("program_name", g_GIT_DESCRIBE);
 	argumentParser.add_argument("input").help("path to directory with input files.").store_into(inputFilePath);
@@ -46,25 +44,5 @@ int parseAndRunWithArgParse(int argc, char *argv[]) {
 		return -1;
 	}
 
-	FILE *outputFile = NULL;
-	std::ifstream inputFileStream{inputFilePath};
-	try {
-		if (!inputFileStream.is_open()) { throw std::runtime_error("input file [" + inputFilePath + "] doesn't exit!"); }
-
-		// Open the output file...
-		if ((outputFile = fopen(argv[2], "w")) == NULL) {
-			throw std::runtime_error("Could not open output file[" + outputFilePath + "] for writing.");
-		}
-		activateSolver(inputFileStream, outputFile, taskID);
-	} catch (const std::runtime_error& err) {
-		std::cerr << err.what() << std::endl;
-		returnCode = 5;
-	} catch (...) {
-		std::cerr << "Unknown exception thrown." << std::endl;
-		returnCode = 255;
-	}
-
-	if (outputFile != NULL) { fclose(outputFile); }
-	if (inputFileStream.is_open()) { inputFileStream.close(); }
-	return returnCode;
+	return solve(inputFilePath, outputFilePath, taskID);
 }
