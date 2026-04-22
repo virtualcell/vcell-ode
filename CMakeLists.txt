@@ -23,7 +23,7 @@ endif ()
 #############################################
 #  Declare Options
 ##############################################
-option(OPTION_TARGET_PYTHON_BINDING "build Python bindings" ON)
+option(OPTION_TARGET_PYTHON_BINDING "build Python bindings" OFF)
 option(OPTION_TARGET_MESSAGING "Messaging (requires libcurl)" OFF)
 option(OPTION_TARGET_DOCS "Generate Doxygen documentation" OFF)
 option(OPTION_TEST_WITH_LOCALHOST "Use localhost as server rather than vcell.cam.uchc.edu" OFF)

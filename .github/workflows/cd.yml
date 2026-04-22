@@ -1,11 +1,20 @@
 name: CD
 
-on: [push, workflow_dispatch]
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - master
+  release:
+    types:
+      - published
+
 
 jobs:
   MacOS:
     name:
-      Build Python Wheels on ${{ matrix.platform }} (for ${{ matrix.python.std_version }})
+      Build Native Executables and Python Wheels on ${{ matrix.platform }} (for ${{ matrix.python.std_version }})
     strategy:
       fail-fast: false
       matrix:
@@ -23,30 +32,29 @@ jobs:
 
     steps:
       - name: checkout vcell-ode repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install MacOS dependencies <x86_64>
         if: matrix.platform == 'macos-15-intel'
         shell: bash
         run: |
-          brew install conan
+          brew install conan spdlog
           conan --version
           mkdir -p ~/.conan2/profiles/
           touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
           cp conan-profiles/CI-CD/MacOS-AMD64_profile.txt ~/.conan2/profiles/default
 
       - name: Install MacOS dependencies <ARM>
-        if: matrix.platform == 'macos-latest'
+        if: matrix.platform == 'macos-15'
         shell: bash
         run: |
-          brew install conan
+          brew install conan spdlog
           conan --version
           mkdir -p ~/.conan2/profiles/
           touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
           cp conan-profiles/CI-CD/MacOS-ARM64_profile.txt ~/.conan2/profiles/default
 
       - name: Install Dependencies through Conan on MacOS
-        if: matrix.platform == 'macos-latest' || matrix.platform == 'macos-15-intel'
         shell: bash
         run: |
           conan install . --output-folder build --build=missing          
@@ -90,7 +98,7 @@ jobs:
           path: build/upload/mac64.tgz
 
       - name: Upload ARM Macos binaries
-        if: matrix.platform == 'macos-latest' && matrix.python.std_version == '3.12' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
+        if: matrix.platform == 'macos-15' && matrix.python.std_version == '3.12' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
         uses: actions/upload-artifact@v7
         with:
           name: macos_arm64
@@ -103,6 +111,8 @@ jobs:
           MACOSX_DEPLOYMENT_TARGET: 15.0
           CIBW_BUILD: "${{ matrix.python.cibw_version }}*"
           CIBW_ARCHES: "native"
+          CIBW_CONFIG_SETTINGS: >-
+            cmake.args=-DOPTION_TARGET_PYTHON_BINDING=ON
 
       - name: Upload Python Wheel
         uses: actions/upload-artifact@v7
@@ -120,7 +130,7 @@ jobs:
 
   WindowsOS:
     name:
-      Build Python Wheels on ${{ matrix.platform }} (for ${{ matrix.python.std_version }})
+      Build Native Executables and Python Wheels on ${{ matrix.platform }} (for ${{ matrix.python.std_version }})
     strategy:
       fail-fast: false
       matrix:
@@ -137,19 +147,33 @@ jobs:
             cibw_version: "cp313-"
     runs-on: ${{ matrix.platform }}
     steps:
+      - name: Pre-install Configuration <x86_64>
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: |
+          echo "CONAN_PROFILE_NAME=Windows-AMD64_profile.txt" >> $GITHUB_ENV
+          echo "CONAN_ENV_PATH=${{ github.workspace }}/build/conan_toolchain.cmake" | sed 's/\\/\//g' >> $GITHUB_ENV
+
+      - name: Pre-install Configuration <ARM64>
+        if: matrix.platform == 'windows-11-arm'
+        shell: bash
+        run: |
+          echo "CONAN_PROFILE_NAME=Windows-ARM64_profile.txt" >> $GITHUB_ENV
+          echo "CONAN_ENV_PATH=${{ github.workspace }}/build/conan_toolchain.cmake" | sed 's/\\/\//g' >> $GITHUB_ENV
       - name: checkout vcell-ode repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Windows Dependencies (Part 0 - Setup LLVM-style)
         uses: llvm/actions/setup-windows@main
         with:
           arch: amd64
 
-      - name: Install Windows Dependencies (Part 1 - Configure Conan ...and zip)
+      - name: Install Windows Dependencies (Part 1 - Configure Conan ...et all)
         shell: powershell
         run: |
           choco install zip -y
           choco install conan -y
+          vcpkg install spdlog
           $conanDir = "C:\Program Files\Conan\conan"
           $env:PATH = "$conanDir;$env:PATH"
           $conanDir | Set-Content -Path $env:GITHUB_PATH
@@ -157,18 +181,13 @@ jobs:
           "CONAN_HOME=C:\.conan" | Out-File -FilePath $env:GITHUB_ENV -Append
           conan --version
           conan profile detect --force  
+          
 
-      - name: Install Windows Dependencies (Part 2 - Reconfigure Conan) <x86_64>
+      - name: Install Windows Dependencies (Part 2 - Reconfigure Conan)
         if: matrix.platform == 'windows-latest'
         shell: bash
         run: |
-          cp conan-profiles/CI-CD/Windows-AMD64_profile.txt $CONAN_HOME/profiles/default
-
-      - name: Install Windows Dependencies (Part 2 - Reconfigure Conan) <ARM>
-        if: matrix.platform == 'windows-11-arm'
-        shell: bash
-        run: |
-          cp conan-profiles/CI-CD/Windows-ARM64_profile.txt $CONAN_HOME/profiles/default
+          cp conan-profiles/CI-CD/${{ env.CONAN_PROFILE_NAME }} $CONAN_HOME/profiles/default
 
       - name: Install Dependencies through Conan on Windows
         shell: powershell
@@ -230,14 +249,12 @@ jobs:
         env:
           CC: clang-cl
           CXX: clang-cl
-          FC: flang
           CMAKE_GENERATOR: Ninja
-          CMAKE_TOOLCHAIN_FILE: ${{ env.CONAN_ENV_PATH }}
         run: |
           cd $env:GITHUB_WORKSPACE
           . $env:GITHUB_WORKSPACE/build/conanbuild.ps1
           python3 -m pip install build h5py
-          python3 -m build --wheel -o ./wheelhouse -C cmake.define.LIBZIPPP_CMAKE_CONFIG_MODE=ON -C cmake.define.OPTION_TARGET_PYTHON_BINDING=ON -C cmake.define.OPTION_TARGET_MESSAGING=OFF -C cmake.define.OPTION_TARGET_SMOLDYN_SOLVER=ON -C cmake.define.OPTION_TARGET_FV_SOLVER=ON -C cmake.define.OPTION_TARGET_DOCS=OFF -C cmake.define.OPTION_TARGET_TESTS=ON
+          python3 -m build --wheel -o ./wheelhouse -C cmake.args="-DCMAKE_TOOLCHAIN_FILE=${{ env.CONAN_ENV_PATH }}" -C cmake.define.OPTION_TARGET_PYTHON_BINDING=ON
 
       - name: Upload Python Wheel
         if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
@@ -254,7 +271,7 @@ jobs:
 
   GNULinux:
     name:
-      Build Python Wheels on ${{ matrix.platform }} (for ${{ matrix.python.std_version }})
+      Build Native Executables and Python Wheels on ${{ matrix.platform }} (for ${{ matrix.python.std_version }})
     strategy:
       fail-fast: false
       matrix:
@@ -271,14 +288,25 @@ jobs:
     runs-on: ${{ matrix.platform }}
 
     steps:
+      - name: Pre-install Configuration <x86_64>
+        if: matrix.platform == 'ubuntu-latest'
+        shell: bash
+        run: |
+          echo "CONAN_PROFILE_NAME=Linux-AMD64_profile.txt" >> $GITHUB_ENV
+
+      - name: Pre-install Configuration <ARM64>
+        if: matrix.platform == 'ubuntu-24.04-arm'
+        shell: bash
+        run: |
+          echo "CONAN_PROFILE_NAME=Linux-ARM64_profile.txt" >> $GITHUB_ENV
+
       - name: checkout vcell-ode repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Install Linux Dependencies <x86_64>
         if: matrix.platform == 'ubuntu-latest'
         run: |
           sudo apt update
-          sudo apt upgrade -y
           sudo apt install -y wget
           wget --version
           wget https://github.com/conan-io/conan/releases/download/2.22.2/conan-2.22.2-amd64.deb
@@ -368,26 +396,40 @@ jobs:
           name: linux64_arm64
           path: build/upload/linux64.tgz
 
-      - name: Build Wheels with CIBuildWheel (via Docker)
+      - name: Login to GitHub Container Registry
+        if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build Wheels with CIBuildWheel (via Docker) <x86_64>
         uses: pypa/cibuildwheel@v3.4.0
-        if: (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
+        if: matrix.platform == 'ubuntu-latest' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
         env:
           CIBW_BUILD: "${{ matrix.python.cibw_version }}*"
           CIBW_SKIP: "*musllinux*"
           CIBW_ARCHS_LINUX: "native"
-          CIBW_REPAIR_WHEEL_COMMAND: 'auditwheel repair --disable-isa-ext-check {wheel} -w {dest_dir}'
+          CIBW_MANYLINUX_X86_64_IMAGE: 'ghcr.io/virtualcell/fvsolver_manylinux_2_34_amd64:latest'
+          CIBW_REPAIR_WHEEL_COMMAND: 'LD_LIBRARY_PATH=/usr/local/lib/x86_64-unknown-linux-gnu:$LD_LIBRARY_PATH auditwheel repair --disable-isa-ext-check {wheel} -w {dest_dir}'
           CIBW_CONFIG_SETTINGS_LINUX: >-
             cmake.args=-DCMAKE_TOOLCHAIN_FILE=/project/build/conan_toolchain.cmake
+            cmake.args=-DOPTION_TARGET_PYTHON_BINDING=ON
           CIBW_ENVIRONMENT_LINUX: CC="clang" CXX="clang++"
           CIBW_BEFORE_BUILD: |
             echo $PWD
-            dnf install perl clang -y
+            dnf erase gcc-c++ -y
+            # dnf install mold perl-lib perl-FindBin perl-IPC-Cmd -y
+            dnf install mold perl-core -y
+            rm -rf /opt/rh/*
             ln -sf /usr/local/bin/clang   /usr/local/bin/gcc
             ln -sf /usr/local/bin/clang   /usr/local/bin/cc
             ln -sf /usr/local/bin/clang++ /usr/local/bin/g++
             ln -sf /usr/local/bin/clang++ /usr/local/bin/c++
             ln -sf /usr/local/bin/clang++ /usr/local/bin/cpp
-            rm -rf /opt/rh/*
+            cp /usr/local/lib/x86_64-unknown-linux-gnu/* /usr/local/lib/
+            ldconfig
             python3 -m pip install conan
             mkdir -p /root/.conan2/profiles/
             cp conan-profiles/CI-CD/${{ env.CONAN_PROFILE_NAME }} /root/.conan2/profiles/default
@@ -395,6 +437,41 @@ jobs:
             echo "source /project/build/conanbuild.sh" >> ~/.profile
             echo "source /project/build/conanbuild.sh" >> ~/.bashrc
             source /project/build/conanbuild.sh
+
+      - name: Build Wheels with CIBuildWheel (via Docker) <ARM64>
+        uses: pypa/cibuildwheel@v3.4.0
+        if: matrix.platform == 'ubuntu-24.04-arm' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
+        env:
+          CIBW_BUILD: "${{ matrix.python.cibw_version }}*"
+          CIBW_SKIP: "*musllinux*"
+          CIBW_ARCHS_LINUX: "native"
+          CIBW_MANYLINUX_AARCH64_IMAGE: 'ghcr.io/virtualcell/fvsolver_manylinux_2_34_aarch64:latest'
+          CIBW_REPAIR_WHEEL_COMMAND: 'LD_LIBRARY_PATH=/usr/local/lib/aarch64-unknown-linux-gnu:$LD_LIBRARY_PATH auditwheel repair --disable-isa-ext-check {wheel} -w {dest_dir}'
+          CIBW_CONFIG_SETTINGS_LINUX: >-
+            cmake.args=-DCMAKE_TOOLCHAIN_FILE=/project/build/conan_toolchain.cmake
+            cmake.args=-DOPTION_TARGET_PYTHON_BINDING=ON
+          CIBW_ENVIRONMENT_LINUX: CC="clang" CXX="clang++"
+          CIBW_BEFORE_BUILD: |
+            echo $PWD
+            dnf erase gcc-c++ -y
+            # dnf install mold perl-lib perl-FindBin perl-IPC-Cmd -y
+            dnf install mold perl-core -y
+            ln -sf $(which clang)   /usr/local/bin/gcc
+            ln -sf $(which clang)   /usr/local/bin/cc
+            ln -sf $(which clang++) /usr/local/bin/g++
+            ln -sf $(which clang++) /usr/local/bin/c++
+            ln -sf $(which clang++) /usr/local/bin/cpp
+            rm -rf /opt/rh/*
+            cp /usr/local/lib/aarch64-unknown-linux-gnu/* /usr/local/lib/
+            ldconfig
+            python3 -m pip install conan
+            mkdir -p /root/.conan2/profiles/
+            cp conan-profiles/CI-CD/${{ env.CONAN_PROFILE_NAME }} /root/.conan2/profiles/default
+            conan install . --output-folder /project/build --build=missing
+            echo "source /project/build/conanbuild.sh" >> ~/.profile
+            echo "source /project/build/conanbuild.sh" >> ~/.bashrc
+            source /project/build/conanbuild.sh
+
 
       - name: Upload Python Wheel
         if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
@@ -412,10 +489,10 @@ jobs:
 
   MacOS-Universal:
     name: Create Universal macOS Binary
-    runs-on: macos-latest
+    runs-on: macos-15
+    if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
     needs:
       - MacOS
-
 
     steps:
       # The binaries are "named" (ID'd) different as artifacts, but not as filenames (`mac64.tgz`).
