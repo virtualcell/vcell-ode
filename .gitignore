@@ -28,3 +28,7 @@ CMakeUserPresets.json
 conan-build
 conan-build/*
 conan_provider.cmake
+
+tests/unit/__pycache__/
+
+wheelhouse/

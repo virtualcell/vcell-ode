@@ -36,6 +36,36 @@ else()
     target_compile_definitions(unit_tests PRIVATE TEST_WITH_LOCALHOST=0)
 endif ()
 
+#############################################
+#  Python smoke test
+#  Runs `tests/unit/smoke_test.py` via PYTHON_TEST_INTERPRETER. Registration
+#  is skipped if `pyvcell_odesolver` is not importable from that interpreter,
+#  so CI's native ctest run (system Python without the wheel) stays green.
+#  cibuildwheel exercises the same file independently via pytest.
+##############################################
+find_package(Python3 COMPONENTS Interpreter QUIET)
+set(PYTHON_TEST_INTERPRETER "${Python3_EXECUTABLE}" CACHE FILEPATH
+    "Python interpreter for pytest-based tests (must have pyvcell_odesolver installed)")
+if (PYTHON_TEST_INTERPRETER)
+    execute_process(
+        COMMAND ${PYTHON_TEST_INTERPRETER} -c "import pyvcell_odesolver"
+        RESULT_VARIABLE _pyvcell_import_result
+        OUTPUT_QUIET ERROR_QUIET
+    )
+    if (_pyvcell_import_result EQUAL 0)
+        add_test(
+            NAME python_smoke_test
+            COMMAND ${PYTHON_TEST_INTERPRETER} -m pytest -v
+                    ${CMAKE_CURRENT_SOURCE_DIR}/unit/smoke_test.py
+        )
+    else()
+        message(STATUS
+            "Skipping python_smoke_test: pyvcell_odesolver not importable from "
+            "${PYTHON_TEST_INTERPRETER}. Install the wheel into a venv and "
+            "rerun cmake with -DPYTHON_TEST_INTERPRETER=<venv>/bin/python.")
+    endif()
+endif()
+
 
 #add_executable(integration_tests
 #        integration/test_integration.cpp
