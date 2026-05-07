@@ -1,6 +1,6 @@
 # JMS_Paramters
 JMS_PARAM_BEGIN
-JMS_BROKER localhost:30163
+JMS_BROKER localhost:8161
 JMS_USER clientUser dummy
 JMS_QUEUE workerEvent
 JMS_TOPIC serviceControl

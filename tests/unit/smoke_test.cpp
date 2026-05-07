@@ -46,6 +46,11 @@ TEST(SmokeTest, UserProvidesFilesWithoutJMS) {
 	performSmokeTest(taskID, hashID);
 }
 
+/**
+ * To perform localhost smoke test, run the following docker command:
+ * `docker run -p 61616:61616 -p 8161:8161 apache/activemq-classic`
+ * Then connect to http://localhost:8161, and login as `admin` pass `admin`
+ */
 TEST(SmokeTest, UserProvidesFilesWithJMS) {
 	constexpr int taskID = 2025;
 	#ifdef TEST_WITH_LOCALHOST

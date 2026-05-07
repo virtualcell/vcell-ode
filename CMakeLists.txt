@@ -30,6 +30,9 @@ option(OPTION_TEST_WITH_LOCALHOST "Use localhost as server rather than vcell.cam
 option(OPTION_EXTRA_CONFIG_INFO "Print useful cmake debug info while configuring" OFF)
 option(OPTION_STATICALLY_LINK "Decided whether to statically link, or use (and generate) dynamic shared libs" OFF)
 
+if(OPTION_TARGET_PYTHON_BINDING AND OPTION_TARGET_MESSAGING)
+	message(FATAL_ERROR "Can not build python bindings and enable messaging in the same build")
+endif()
 
 #############################################
 #  MinGW check
