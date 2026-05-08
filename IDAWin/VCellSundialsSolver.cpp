@@ -226,35 +226,7 @@ void VCellSundialsSolver::configureFromInput(VCellSolverInputBreakdown& inputBre
 	}
 }
 
-void VCellSundialsSolver::readDiscontinuities(std::istream &inputstream) {
-	inputstream >> numDiscontinuities;
-	odeDiscontinuities = new OdeDiscontinuity *[numDiscontinuities];
-	for (int i = 0; i < numDiscontinuities; i++) {
-		OdeDiscontinuity *od = new OdeDiscontinuity;
-		inputstream >> od->discontinuitySymbol;
 
-		std::string line = "";
-		getline(inputstream, line);
-		std::string::size_type pos = line.find(";");
-		if (pos == std::string::npos) {
-			std::string msg = std::string("discontinuity expression ") + BAD_EXPRESSION_MSG;
-			throw VCell::Exception(msg);
-		}
-		std::string exp = line.substr(0, pos + 1);
-		trimString(exp);
-		od->discontinuityExpression = new VCell::Expression(exp);
-
-		exp = line.substr(pos + 1);
-		trimString(exp);
-		if (*(exp.end() - 1) != ';') {
-			std::string msg = std::string("discontinuity root expression ") + BAD_EXPRESSION_MSG;
-			throw VCell::Exception(msg);
-		}
-		od->rootFindingExpression = new VCell::Expression(exp);
-
-		odeDiscontinuities[i] = od;
-	}
-}
 
 void VCellSundialsSolver::initialize() {
 	// add parameters to symbol table

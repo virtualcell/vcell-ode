@@ -88,8 +88,6 @@ class VCellSundialsSolver : public VCellSolver {
 		void writeFileData(FILE *outputFile);
 		void writeFileHeader(FILE *outputFile);
 		void printProgress(double currTime, double &lastPercentile, clock_t &lastTime, double increment, FILE *outputFile) const;
-		void readDiscontinuities(std::istream &inputstream);
-		virtual void readEquations(std::istream &inputstream) = 0;
 		virtual void readEquations(VCellSolverInputBreakdown& inputBreakdown) = 0;
 		virtual void initialize();
 		void initDiscontinuities();

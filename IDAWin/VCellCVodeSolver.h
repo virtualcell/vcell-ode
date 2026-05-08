@@ -13,7 +13,6 @@ public:
 	double RHS(double* allValues, int equationIndex);
 
 protected:
-	void readEquations(std::istream& inputstream) override;
 	void readEquations(VCellSolverInputBreakdown& inputBreakdown) override;
 	void initialize() override;
 	std::string getSolverName() override { return "CVODE"; }

@@ -169,41 +169,6 @@ Input format:
 	ODE x_o INIT 0.0;
 		 RATE ( - ((20.0 * x_o * D_B0) - (50.0 * x_i)) + (1505000.0 * (3.322259136212625E-4 - (3.322259136212625E-4 * x_o) - (3.322259136212625E-4 * x_i))) - (100.0 * x_o));
 --------------------------------------------------------------*/
-void VCellCVodeSolver::readEquations(std::istream& inputstream) {
-	try {
-		std::string name;
-		std::string exp;
-		
-		rateExpressions = new Expression*[NUM_EQUATIONS];
-
-		for (int i = 0; i < NUM_EQUATIONS; i ++) {
-			// ODE
-			inputstream >> name >> variableNames[i];			
-
-			// INIT
-			inputstream >> name;
-			try {			
-				initialConditionExpressions[i] = readExpression(inputstream);
-			} catch (VCell::Exception& ex) {
-				throw VCell::Exception(std::string("Initial condition expression for [") + variableNames[i] + "] " + ex.getMessage());
-			}
-
-			// RATE
-			inputstream >> name;
-			try {
-				rateExpressions[i] = readExpression(inputstream);
-			} catch (VCell::Exception& ex) {
-				throw VCell::Exception(std::string("Rate expression for [") + variableNames[i] + "] " + ex.getMessage());
-			}
-		}				
-	} catch (char* ex) {
-		throw VCell::Exception(std::string("VCellCVodeSolver::readInput() : ") + ex);
-	} catch (VCell::Exception& ex) {
-		throw VCell::Exception(std::string("VCellCVodeSolver::readInput() : ") + ex.getMessage());
-	} catch (...) {
-		throw "VCellCVodeSolver::readInput() : caught unknown exception";
-	}
-}
 
 void VCellCVodeSolver::readEquations(VCellSolverInputBreakdown& inputBreakdown) {
 	try {

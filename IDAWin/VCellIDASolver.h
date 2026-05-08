@@ -13,7 +13,6 @@ public:
 
 protected:
 	void updateTempRowData(double currTime) override;
-	void readEquations(std::istream& inputstream) override;
 	void readEquations(VCellSolverInputBreakdown& inputBreakdown) override;
 	void initialize() override;
 	std::string getSolverName() override { return "IDA"; }
