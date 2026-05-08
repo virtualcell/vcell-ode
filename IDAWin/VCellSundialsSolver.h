@@ -122,12 +122,12 @@ struct EventAssignment {
 };
 
 struct EventExecution {
-	realtype exeTime;
+	realtype timeToExecuteEventAt;
 	Event *event0;
 	double *targetValues;
 
 	EventExecution(Event *e) {
-		this->exeTime = RCONST(0.0);
+		this->timeToExecuteEventAt = RCONST(0.0);
 		this->event0 = e;
 		this->targetValues = nullptr;
 	}

@@ -422,9 +422,9 @@ void VCellSundialsSolver::testEventTriggers(realtype Time) {
 		events[i]->triggerValue = newTriggerValue;
 		if (!oldTriggerValue && newTriggerValue) { // triggered
 			eventExecutions.emplace_back(new EventExecution(events[i]));
-			eventExecutions.back()->exeTime = Time;
+			eventExecutions.back()->timeToExecuteEventAt = Time;
 			if (events[i]->hasDelay()) {
-				eventExecutions.back()->exeTime = Time + events[i]->delayDurationExpression->evaluateVector(values);
+				eventExecutions.back()->timeToExecuteEventAt = Time + events[i]->delayDurationExpression->evaluateVector(values);
 			}
 			if (events[i]->bUseValuesAtTriggerTime) {
 				const unsigned long numEventAssignments = events[i]->eventAssignmentsVec->size();
@@ -436,7 +436,7 @@ void VCellSundialsSolver::testEventTriggers(realtype Time) {
 		}
 	}
 	auto compLambda = [](const EventExecution *e1, const EventExecution *e2) {
-		return e1->exeTime < e2->exeTime;
+		return e1->timeToExecuteEventAt < e2->timeToExecuteEventAt;
 	};
 	std::ranges::sort(eventExecutions, compLambda);
 	std::list eventExecutionsSorted(std::make_move_iterator(eventExecutions.begin()), std::make_move_iterator(eventExecutions.end()));
@@ -453,15 +453,9 @@ bool VCellSundialsSolver::executeEvents(const realtype realTimeVar) {
 		auto iter = eventExeList.begin();
 		EventExecution *ee = *iter;
 
-		if (ee->exeTime > realTimeVar + epsilon) return bExecuted; // not time yet
-		if (ee->exeTime < realTimeVar) {
-			std::stringstream ss;
-			ss << "missed Event '" << ee->event0->name << "' with trigger " << ee->event0->triggerExpression->infix()
-					<< ", scheduled time = " << ee->exeTime << ", current time = " << realTimeVar << std::endl;
-			throw ss.str();
-		}
+		if (ee->timeToExecuteEventAt > realTimeVar + epsilon) return bExecuted; // not time yet
 
-		if (fabs(ee->exeTime - realTimeVar) < epsilon) { // execute
+		if (fabs(ee->timeToExecuteEventAt - realTimeVar) < epsilon) { // execute
 			updateTandVariableValues(realTimeVar, y);
 			double *y_data = NV_DATA_S(y); // assign the values
 			for (int i = 0; i < ee->event0->eventAssignmentsVec->size(); i++) {
@@ -475,6 +469,11 @@ bool VCellSundialsSolver::executeEvents(const realtype realTimeVar) {
 			delete ee;
 			bExecuted = true;
 			testEventTriggers(realTimeVar); // retest all triggers again.
+		} else if (ee->timeToExecuteEventAt < realTimeVar) {
+			std::stringstream ss;
+			ss << "missed Event '" << ee->event0->name << "' with trigger " << ee->event0->triggerExpression->infix()
+					<< ", scheduled time = " << ee->timeToExecuteEventAt << ", current time = " << realTimeVar << std::endl;
+			throw ss.str();
 		}
 	}
 	return bExecuted;
@@ -484,7 +483,7 @@ double VCellSundialsSolver::getNextEventTime() {
 	if (!eventExeList.empty()) {
 		auto iter = eventExeList.begin();
 		EventExecution *ee = *iter;
-		return ee->exeTime;
+		return ee->timeToExecuteEventAt;
 	}
 
 	return DBL_MAX;
