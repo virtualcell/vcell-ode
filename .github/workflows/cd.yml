@@ -67,28 +67,25 @@ jobs:
           cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release
           cmake --build . --config Release
 
+      - name: Fix MacOS shared object paths
+        shell: bash
+        run: |
+          mkdir build/upload
+          cd build/bin
+          ls *_x64   | awk '{print $1}' | xargs -I '{}' otool -L '{}' | grep ")" | grep -v "build" | grep -v "System" | grep -v "/usr/lib/" | awk '{print $1}' | xargs -I '{}' cp -vn '{}' . || true
+          ls *.dylib | awk '{print $1}' | xargs -I '{}' otool -L '{}' | grep ")" | grep -v "build" | grep -v "System" | grep -v "/usr/lib/" | awk '{print $1}' | xargs -I '{}' cp -vn '{}' . || true
+          ls *.dylib | awk '{print $1}' | xargs -I '{}' otool -L '{}' | grep ")" | grep -v "build" | grep -v "System" | grep -v "/usr/lib/" | awk '{print $1}' | xargs -I '{}' cp -vn '{}' . || true
+          chmod u+w,+x *
+          tar czvf ../upload/mac64_bad_paths.tgz .
+          ../../.github/scripts/install_name_tool_macos.sh
+          tar czvf ../upload/mac64.tgz --dereference .
+
       - name: Test Mac
         run: |
           cd build
           ctest -VV
           echo "------ running SundialsSolverStandalone_x64 ------"
           ./bin/SundialsSolverStandalone_x64 || true
-
-
-      - name: Make MacOS Shared Object Paths Relative
-        shell: bash
-        if: matrix.python.std_version == '3.12' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
-        run: |
-          mkdir build/upload
-          cd build/bin
-          rm unit_tests
-          ls *_x64   | awk '{print $1}' | xargs -I '{}' otool -L '{}' | grep ")" | grep -v "build" | grep -v "System" | awk '{print $1}' | xargs -I '{}' cp -vn '{}' . || true
-          ls *.dylib | awk '{print $1}' | xargs -I '{}' otool -L '{}' | grep ")" | grep -v "build" | grep -v "System" | awk '{print $1}' | xargs -I '{}' cp -vn '{}' . || true
-          ls *.dylib | awk '{print $1}' | xargs -I '{}' otool -L '{}' | grep ")" | grep -v "build" | grep -v "System" | awk '{print $1}' | xargs -I '{}' cp -vn '{}' . || true
-          chmod u+w,+x *
-          tar czvf ../upload/mac64_bad_paths.tgz .
-          ../../.github/scripts/install_name_tool_macos.sh
-          tar czvf ../upload/mac64.tgz --dereference .
 
       - name: Upload Intel Macos binaries
         if: matrix.platform == 'macos-15-intel' && matrix.python.std_version == '3.12' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
@@ -202,19 +199,11 @@ jobs:
           cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release
           cmake --build . --config Release
 
-      - name: Test Windows
-        run: |
-          cd build
-          ctest -VV
-          ./bin/SundialsSolverStandalone_x64 || true
-
       - name: Make Windows Shared Object Paths Relative
         shell: bash
-        if: matrix.python.std_version == '3.12' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
         run: |
           mkdir build/upload
           cd build/bin
-          rm unit_tests* *.pdb || true
           ls *.exe | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
           # Currently, Sundials only requires system32 dlls! 
           # ls *.dll | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
@@ -223,6 +212,12 @@ jobs:
           zip ../upload/win64.zip ./*
           cd ../..
           # fi
+
+      - name: Test Windows
+        run: |
+          cd build
+          ctest -VV
+          ./bin/SundialsSolverStandalone_x64 || true
 
       - name: Upload Windows (x86_64) binaries
         if: matrix.platform == 'windows-latest' && matrix.python.std_version == '3.12' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
@@ -237,6 +232,25 @@ jobs:
         with:
           name: win64_arm64
           path: build/upload/win64.zip
+
+      - name: Modify Archive Name <ARM64>
+        if: matrix.platform == 'windows-11-arm' && matrix.python.std_version == '3.12' && github.event_name == 'release' && github.event.action == 'published'
+        run: |
+          mv build/upload/win64.zip build/upload/win64arm.zip
+
+      - name: Attach Windows Binaries to Release <x86_64>
+        uses: softprops/action-gh-release@v3
+        if: matrix.platform == 'windows-latest' && matrix.python.std_version == '3.12' && github.event_name == 'release' && github.event.action == 'published'
+        with:
+          files: |
+            build/upload/win64.zip
+
+      - name: Attach Linux Binaries to Release <ARM64>
+        uses: softprops/action-gh-release@v3
+        if: matrix.platform == 'windows-11-arm' && matrix.python.std_version == '3.12' && github.event_name == 'release' && github.event.action == 'published'
+        with:
+          files: |
+            build/upload/win64arm.zip
 
       - name: Set up Python ${{ matrix.python.std_version  }}
         if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
@@ -359,6 +373,18 @@ jobs:
           cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release
           cmake --build . --config Release
 
+      - name: Make Linux Shared Object Paths Relative
+        shell: bash
+        run: |
+          mkdir build/upload
+          cd build/bin
+          ls *_x64   | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep "=> /" | grep -v "build" | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
+          ls *.so    | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep "=> /" | grep -v "build" | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
+          ls *.so    | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep "=> /" | grep -v "build" | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
+          chmod u+w,+x *
+          tar czvf ../upload/linux64.tgz --dereference .
+          cd ../..
+
       - name: Test Linux
         run: |
           cd build
@@ -368,20 +394,6 @@ jobs:
           echo "------ running SundialsSolverStandalone_x64 ------"
           ./bin/SundialsSolverStandalone_x64 || true
 
-
-      - name: Make Linux Shared Object Paths Relative
-        shell: bash
-        run: |
-          mkdir build/upload
-          cd build/bin
-          rm unit_tests
-          ls *_x64   | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep "=> /" | grep -v "build" | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
-          ls *.so    | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep "=> /" | grep -v "build" | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
-          ls *.so    | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep "=> /" | grep -v "build" | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
-          chmod u+w,+x *
-          tar czvf ../upload/linux64.tgz --dereference .
-          cd ../..
-
       - name: Upload Linux (x86_64) binaries
         if: matrix.platform == 'ubuntu-latest' && matrix.python.std_version == '3.12' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
         uses: actions/upload-artifact@v7
@@ -389,12 +401,31 @@ jobs:
           name: linux64_x86_64
           path: build/upload/linux64.tgz
 
-      - name: Upload Linux (ARMv8) binaries
+      - name: Upload Linux (ARM64) binaries
         if: matrix.platform == 'ubuntu-24.04-arm' && matrix.python.std_version == '3.12' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
         uses: actions/upload-artifact@v7
         with:
           name: linux64_arm64
           path: build/upload/linux64.tgz
+
+      - name: Modify Archive Name <ARM64>
+        if: matrix.platform == 'ubuntu-24.04-arm' && matrix.python.std_version == '3.12' && github.event_name == 'release' && github.event.action == 'published'
+        run: |
+          mv build/upload/linux64.tgz build/upload/linux64arm.tgz
+
+      - name: Attach Linux Binaries to Release <x86_64>
+        uses: softprops/action-gh-release@v3
+        if: matrix.platform == 'ubuntu-latest' && matrix.python.std_version == '3.12' && github.event_name == 'release' && github.event.action == 'published'
+        with:
+          files: |
+            build/upload/linux64.tgz
+
+      - name: Attach Linux Binaries to Release <ARM64>
+        uses: softprops/action-gh-release@v3
+        if: matrix.platform == 'ubuntu-24.04-arm' && matrix.python.std_version == '3.12' && github.event_name == 'release' && github.event.action == 'published'
+        with:
+          files: |
+            build/upload/linux64arm.tgz
 
       - name: Login to GitHub Container Registry
         if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
@@ -411,7 +442,7 @@ jobs:
           CIBW_BUILD: "${{ matrix.python.cibw_version }}*"
           CIBW_SKIP: "*musllinux*"
           CIBW_ARCHS_LINUX: "native"
-          CIBW_MANYLINUX_X86_64_IMAGE: 'ghcr.io/virtualcell/fvsolver_manylinux_2_34_amd64:latest'
+          CIBW_MANYLINUX_X86_64_IMAGE: 'ghcr.io/virtualcell/fvsolver_manylinux_2_28_x86_64:0.1.3'
           CIBW_REPAIR_WHEEL_COMMAND: 'LD_LIBRARY_PATH=/usr/local/lib/x86_64-unknown-linux-gnu:$LD_LIBRARY_PATH auditwheel repair --disable-isa-ext-check {wheel} -w {dest_dir}'
           CIBW_CONFIG_SETTINGS_LINUX: >-
             cmake.args=-DCMAKE_TOOLCHAIN_FILE=/project/build/conan_toolchain.cmake
@@ -419,21 +450,11 @@ jobs:
           CIBW_ENVIRONMENT_LINUX: CC="clang" CXX="clang++"
           CIBW_BEFORE_BUILD: |
             echo $PWD
-            dnf erase gcc-c++ -y
-            # dnf install mold perl-lib perl-FindBin perl-IPC-Cmd -y
-            dnf install mold perl-core -y
-            rm -rf /opt/rh/*
-            ln -sf /usr/local/bin/clang   /usr/local/bin/gcc
-            ln -sf /usr/local/bin/clang   /usr/local/bin/cc
-            ln -sf /usr/local/bin/clang++ /usr/local/bin/g++
-            ln -sf /usr/local/bin/clang++ /usr/local/bin/c++
-            ln -sf /usr/local/bin/clang++ /usr/local/bin/cpp
-            cp /usr/local/lib/x86_64-unknown-linux-gnu/* /usr/local/lib/
-            ldconfig
+            # dnf install mold perl-core-y
             python3 -m pip install conan
             mkdir -p /root/.conan2/profiles/
             cp conan-profiles/CI-CD/${{ env.CONAN_PROFILE_NAME }} /root/.conan2/profiles/default
-            conan install . --output-folder /project/build --build=missing
+            conan install . --output-folder /project/build --build=missing --build="m4/*"
             echo "source /project/build/conanbuild.sh" >> ~/.profile
             echo "source /project/build/conanbuild.sh" >> ~/.bashrc
             source /project/build/conanbuild.sh
@@ -445,7 +466,7 @@ jobs:
           CIBW_BUILD: "${{ matrix.python.cibw_version }}*"
           CIBW_SKIP: "*musllinux*"
           CIBW_ARCHS_LINUX: "native"
-          CIBW_MANYLINUX_AARCH64_IMAGE: 'ghcr.io/virtualcell/fvsolver_manylinux_2_34_aarch64:latest'
+          CIBW_MANYLINUX_AARCH64_IMAGE: 'ghcr.io/virtualcell/fvsolver_manylinux_2_28_aarch64:0.1.3'
           CIBW_REPAIR_WHEEL_COMMAND: 'LD_LIBRARY_PATH=/usr/local/lib/aarch64-unknown-linux-gnu:$LD_LIBRARY_PATH auditwheel repair --disable-isa-ext-check {wheel} -w {dest_dir}'
           CIBW_CONFIG_SETTINGS_LINUX: >-
             cmake.args=-DCMAKE_TOOLCHAIN_FILE=/project/build/conan_toolchain.cmake
@@ -453,21 +474,11 @@ jobs:
           CIBW_ENVIRONMENT_LINUX: CC="clang" CXX="clang++"
           CIBW_BEFORE_BUILD: |
             echo $PWD
-            dnf erase gcc-c++ -y
-            # dnf install mold perl-lib perl-FindBin perl-IPC-Cmd -y
-            dnf install mold perl-core -y
-            ln -sf $(which clang)   /usr/local/bin/gcc
-            ln -sf $(which clang)   /usr/local/bin/cc
-            ln -sf $(which clang++) /usr/local/bin/g++
-            ln -sf $(which clang++) /usr/local/bin/c++
-            ln -sf $(which clang++) /usr/local/bin/cpp
-            rm -rf /opt/rh/*
-            cp /usr/local/lib/aarch64-unknown-linux-gnu/* /usr/local/lib/
-            ldconfig
+            # dnf install mold perl-core -y
             python3 -m pip install conan
             mkdir -p /root/.conan2/profiles/
             cp conan-profiles/CI-CD/${{ env.CONAN_PROFILE_NAME }} /root/.conan2/profiles/default
-            conan install . --output-folder /project/build --build=missing
+            conan install . --output-folder /project/build --build=missing --build="m4/*"
             echo "source /project/build/conanbuild.sh" >> ~/.profile
             echo "source /project/build/conanbuild.sh" >> ~/.bashrc
             source /project/build/conanbuild.sh
@@ -562,20 +573,22 @@ jobs:
 
       - name: Upload MacOS (Universal) binaries
         uses: actions/upload-artifact@v7
+        if: github.event_name == 'release' && github.event.action == 'published'
         with:
           name: macos64_universal
           path: binaries/macos-universal.tgz
 
-#      - name: Upload universal binary to release
-#        if: github.event_name == 'release'
-#        uses: actions/upload-release-asset@v1
-#        env:
-#          GITHUB_TOKEN: ${{ github.token }}
-#        with:
-#          upload_url: ${{ github.event.release.upload_url }}
-#          asset_path: binaries/macos-universal.tgz
-#          asset_name: macos-universal
-#          asset_content_type: application/octet-stream
+      - name: Rename MacOS Native Binaries for Release
+        if: github.event_name == 'release' && github.event.action == 'published'
+        run: |
+          mv binaries/macos-universal.tgz binaries/mac64.tgz
+
+      - name: Attach MacOS Native Binaries to Release
+        uses: softprops/action-gh-release@v3
+        if: github.event_name == 'release' && github.event.action == 'published'
+        with:
+          files: |
+            binaries/mac64.tgz
 
       - name: Setup tmate session
         if: ${{ failure() }}
