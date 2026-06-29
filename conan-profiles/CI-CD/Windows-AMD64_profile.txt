@@ -6,7 +6,7 @@ compiler=clang
 compiler.runtime=static
 compiler.cppstd=20
 compiler.version=21
-compiler.runtime_version=v144
+compiler.runtime_version=v145
 
 [conf]
 tools.cmake.cmaketoolchain:generator=Ninja
