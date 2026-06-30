@@ -274,7 +274,7 @@ jobs:
         if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
         uses: actions/upload-artifact@v7
         with:
-          name: pyvcell-fv-${{ matrix.platform }}-${{ matrix.python.cibw_version }}-cibw-wheels
+          name: pyvcell-ode-${{ matrix.platform }}-${{ matrix.python.cibw_version }}-cibw-wheels
           path: ./wheelhouse/*.whl
 
       - name: Setup tmate session
@@ -488,7 +488,7 @@ jobs:
         if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
         uses: actions/upload-artifact@v7
         with:
-          name: pyvcell-fv-${{ matrix.platform }}-${{ matrix.python.cibw_version }}-cibw-wheels
+          name: pyvcell-ode-${{ matrix.platform }}-${{ matrix.python.cibw_version }}-cibw-wheels
           path: ./wheelhouse/*.whl
 
       - name: Setup tmate session
@@ -595,3 +595,45 @@ jobs:
         uses: mxschmitt/action-tmate@v3
         with:
           limit-access-to-actor: false
+
+
+  publish-to-pypi:
+    name: Publish to PyPI
+    needs: [ WindowsOS, MacOS-Universal, GNULinux ]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' && github.event.action == 'published'
+    environment: pypi
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download all artifacts (wheels and executables)
+        uses: actions/download-artifact@v8
+        with:
+          path: dist_temp/
+
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Publish wheels to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          pip install twine
+          mkdir dist
+          echo "current directory is $(pwd)"
+          ls -al dist*
+          echo "absolute paths of wheels:"
+          find dist_temp -type f -name '*.whl' -exec sh -c 'echo "$(realpath {})"/' \;
+          echo "moving wheels to dist directory"
+          find dist_temp -type f -name '*.whl' -exec sh -c 'mv "$(realpath {})" dist/' \;
+          twine upload --repository pypi dist/*.whl
+
+      - name: Setup tmate session for PyPI upload failure
+        uses: mxschmitt/action-tmate@v3
+        if: ${{ failure() }}
+        with:
+          limit-access-to-actor: true

@@ -5,7 +5,7 @@ build-backend = "scikit_build_core.build"
 
 [project]
 name = "pyvcell_odesolver"
-version = "0.0.1"
+version = "0.9.0"
 description="Virtual Cell CVODE / IDA based ODE solver"
 readme = "README.md"
 authors = [
