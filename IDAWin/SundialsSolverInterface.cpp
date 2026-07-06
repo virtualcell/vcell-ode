@@ -123,3 +123,16 @@ void errExit(int returnCode, const std::string &errorMsg) {
 	std::cerr << errorMsg << std::endl;
 }
 
+// C-bound functions
+extern "C" const char* version_ctypes() {
+	static std::string originalVersion = version();
+	return originalVersion.c_str();
+}
+
+extern "C" int solve_ctypes(const char* inputFilePath, const char* outputFilePath, int taskID) {
+	const std::string ifp{inputFilePath};
+	const std::string ofp{outputFilePath};
+	const int returnCode = solve(ifp, ofp, taskID);
+	return returnCode;
+}
+
