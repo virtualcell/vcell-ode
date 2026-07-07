@@ -50,7 +50,7 @@ if (OPTION_STATICALLY_LINK)
 	#set(BUILD_SHARED_LIBS OFF)
 	set(CMAKE_EXE_LINKER_FLAGS "-static")
 else ()
-	#set(BUILD_SHARED_LIBS ON)
+	set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 endif ()
 
 #############################################
@@ -105,7 +105,9 @@ endif()
 set(RULE_MESSAGES OFF)
 set(CMAKE_COLOR_MAKEFILE OFF)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/cmake/modules/")
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)  # .exe, .dll
+set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)  # .dylib, .so (non-plugin)
+set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)  # .lib, .a (static libs / import libs)
 
 include(GetGitRevisionDescription)
 git_describe(GIT_DESCRIBE)
@@ -268,7 +270,7 @@ endif ()
 if (OPTION_TARGET_PYTHON_BINDING)
 	# Find the module development requirements (requires FindPython from 3.17 or
 	# scikit-build-core's built-in backport)
-	find_package(Python REQUIRED COMPONENTS Interpreter Development.Module)
+	find_package(Python REQUIRED COMPONENTS Interpreter)
 	# The install directory is the output (wheel) directory
 	install(TARGETS IDAWin DESTINATION pyvcell_odesolver)
 

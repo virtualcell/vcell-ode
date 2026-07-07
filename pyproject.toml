@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "pyvcell_odesolver"
-version = "0.9.1"
+version = "0.9.4"
 description="Virtual Cell CVODE / IDA based ODE solver"
 readme = "README.md"
 authors = [
@@ -22,6 +22,9 @@ classifiers = [
     "Programming Language :: Python :: 3.13",
     "Programming Language :: Python :: 3.14",
 ]
+dependencies = [
+    "pydantic>=2.13.4"
+]
 
 [tool.uv.build-backend]
 module-name = "pyvcell_odesolver"
@@ -29,6 +32,7 @@ module-root = ""
 
 [project.optional-dependencies]
 test = ["pytest"]
+build = ["build", "wheel"]
 
 
 [tool.pytest.ini_options]

@@ -37,4 +37,6 @@ tests/__pycache__/
 
 pyvcell_odesolver/__pycache__/
 
-pyvcell_odesolver/lib/
+pyvcell_odesolver/lib/*.dylib
+pyvcell_odesolver/lib/*.dll
+pyvcell_odesolver/lib/*.so

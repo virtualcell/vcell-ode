@@ -1,6 +1,7 @@
 import platform
 import struct
 import os
+import platform
 
 def get_library_archs(lib_path: str) -> tuple[str, list[str]]:
     """Determine architecture based on file type and header."""
@@ -78,7 +79,7 @@ def get_library_archs(lib_path: str) -> tuple[str, list[str]]:
     return 'unknown', [ ]
 
 def get_all_valid_libraries_from_dir(lib_dir: str):
-    dir_files = [full_file for f in os.listdir(lib_dir) if os.path.isfile(full_file := os.path.join(lib_dir, f))]
+    dir_files = [str(full_file) for f in os.listdir(lib_dir) if os.path.isfile(full_file := os.path.join(lib_dir, f))]
     return filter_all_valid_libraries(dir_files)
 
 
@@ -108,20 +109,6 @@ def normalize_arch(machine_str=None):
         return 'i386'
     elif machine_str.startswith('arm'):
         return 'arm'
-    else:
-        return machine_str
-
-if __name__ == '__main__':
-    files_to_check = []
-    directories_to_check = ["/Users/logandrescher/Downloads"]
-    while len(directories_to_check) > 0:
-        cur_dir = directories_to_check.pop()
-
-        for filename in os.listdir(cur_dir):
-            path = os.path.join(cur_dir, filename)
-            if os.path.isdir(path):
-                directories_to_check.append(path)
-            else:
-                files_to_check.append(path)
-    files_to_load = filter_all_valid_libraries(files_to_check)
-    print(files_to_load)
+    elif machine_str.lower() != machine_str:
+        return normalize_arch(machine_str.lower())
+    raise OSError(f"Unknown machine type detected: `{machine_str}`")
