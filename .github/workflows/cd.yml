@@ -146,7 +146,6 @@ jobs:
           
 
       - name: Install Windows Dependencies (Part 2 - Reconfigure Conan)
-        if: matrix.platform == 'windows-latest'
         shell: bash
         run: |
           cp conan-profiles/CI-CD/${{ env.CONAN_PROFILE_NAME }} $CONAN_HOME/profiles/default
@@ -155,6 +154,11 @@ jobs:
         shell: powershell
         run: |
           conan install . --output-folder build --build=missing -o include_messaging=False
+
+      - name: Set up Python 3.10
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
 
       - name: Build Windows
         shell: powershell
@@ -216,12 +220,6 @@ jobs:
         with:
           files: |
             build/upload/win64arm.zip
-
-      - name: Set up Python 3.10
-        if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
-        uses: actions/setup-python@v6
-        with:
-          python-version: "3.10"
 
       - name: Copy dll dependencies for python wheels
         run: |

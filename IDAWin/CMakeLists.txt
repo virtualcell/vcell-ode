@@ -73,6 +73,7 @@ if (ARCH_64bit)
 endif()
 
 target_include_directories(IDAWin PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
+target_compile_definitions(IDAWin PRIVATE IDAWIN_BUILDING_DLL)
 add_executable(${EXE_FILE} ${EXE_SRC_FILES})	
 target_link_libraries(${EXE_FILE} IDAWin)
 

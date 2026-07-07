@@ -28,7 +28,9 @@ int parseAndRunWithArgParse(int argc, char *argv[]) {
 	std::string inputFilePath;
 	std::string outputFilePath;
 
-	argparse::ArgumentParser argumentParser("program_name", g_GIT_DESCRIBE);
+	const std::string programVersion{version()};
+
+	argparse::ArgumentParser argumentParser("program_name", programVersion);
 	argumentParser.add_argument("input").help("path to directory with input files.").store_into(inputFilePath);
 	argumentParser.add_argument("output").help("path to directory for output files.").store_into(outputFilePath);
 	#ifdef USE_MESSAGING

@@ -19,10 +19,10 @@
 void errExit(int returnCode, const std::string &errorMsg);
 
 std::string version() {
-	return "VCell ODE solver (CVODE/IDA) version " + std::string(g_GIT_DESCRIBE);
+	return "VCell ODE solver (CVODE/IDA) v" + std::string(g_GIT_DESCRIBE);
 }
 
-int solve(const std::string& inputFilePath, const std::string& outputFilePath, int taskID) {
+int solve(const std::string& inputFilePath, const std::string& outputFilePath, const int taskID) {
 	int returnCode = 0;
 	FILE *outputFile = NULL;
 	std::ifstream inputFileStream{inputFilePath};
@@ -129,7 +129,7 @@ extern "C" const char* version_ctypes() {
 	return originalVersion.c_str();
 }
 
-extern "C" int solve_ctypes(const char* inputFilePath, const char* outputFilePath, int taskID) {
+extern "C" int solve_ctypes(const char* inputFilePath, const char* outputFilePath, const int taskID) {
 	const std::string ifp{inputFilePath};
 	const std::string ofp{outputFilePath};
 	const int returnCode = solve(ifp, ofp, taskID);
