@@ -27,13 +27,13 @@ class VCellNativeLibraryLoader:
             raise OSError(f"Could not find the shared library directory {libs_dir}")
 
 
-        valid_libraries = check_arch.get_library_archs(libs_dir)
+        valid_libraries = check_arch.get_all_valid_libraries_from_dir(libs_dir)
         for file in valid_libraries:
             print(f"Found shared library: {file}")
-            lib = ctypes.CDLL(name=str(file))
             try:
-                lib.version_ctypes.restype = ctypes.c_char_p # signals ctypes to auto-convert to python-str
-                version_str: str = lib.version_ctypes()
+                lib = ctypes.CDLL(name=str(file))
+                lib.version_ctypes.restype = ctypes.c_char_p # signals ctypes to return as char-array
+                version_str: str = lib.version_ctypes().decode("utf-8")
                 if version_identifier not in version_str:
                     continue
             except AttributeError as e:

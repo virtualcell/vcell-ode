@@ -14,20 +14,11 @@ on:
 jobs:
   MacOS:
     name:
-      Build Native Executables and Python Wheels on ${{ matrix.platform }} (for ${{ matrix.python.std_version }})
+      Build Native Executables and Python Wheels on ${{ matrix.platform }} (for python3.10)
     strategy:
       fail-fast: false
       matrix:
         platform: [ macos-15-intel, macos-15 ]
-        python:
-          - std_version: "3.10"
-            cibw_version: "cp310-"
-          - std_version: "3.11"
-            cibw_version: "cp311-"
-          - std_version: "3.12"
-            cibw_version: "cp312-"
-          - std_version: "3.13"
-            cibw_version: "cp313-"
     runs-on: ${{ matrix.platform }}
 
     steps:
@@ -64,8 +55,8 @@ jobs:
           echo "working dir is $PWD"
           cd build
           source conanbuild.sh
-          cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release
-          cmake --build . --config Release
+          MACOSX_DEPLOYMENT_TARGET=15.0 cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release -DOPTION_TARGET_PYTHON_BINDING=ON
+          MACOSX_DEPLOYMENT_TARGET=15.0 cmake --build . --config Release
 
       - name: Fix MacOS shared object paths
         shell: bash
@@ -88,35 +79,18 @@ jobs:
           ./bin/SundialsSolverStandalone_x64 || true
 
       - name: Upload Intel Macos binaries
-        if: matrix.platform == 'macos-15-intel' && matrix.python.std_version == '3.12' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
+        if: matrix.platform == 'macos-15-intel' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
         uses: actions/upload-artifact@v7
         with:
           name: macos_x86_64
           path: build/upload/mac64.tgz
 
       - name: Upload ARM Macos binaries
-        if: matrix.platform == 'macos-15' && matrix.python.std_version == '3.12' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
+        if: matrix.platform == 'macos-15'  && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
         uses: actions/upload-artifact@v7
         with:
           name: macos_arm64
           path: build/upload/mac64.tgz
-
-      - name: Build Wheels
-        uses: pypa/cibuildwheel@v3.4.0
-        if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
-        env:
-          MACOSX_DEPLOYMENT_TARGET: 15.0
-          CIBW_BUILD: "${{ matrix.python.cibw_version }}*"
-          CIBW_ARCHES: "native"
-          CIBW_CONFIG_SETTINGS: >-
-            cmake.args=-DOPTION_TARGET_PYTHON_BINDING=ON
-
-      - name: Upload Python Wheel
-        uses: actions/upload-artifact@v7
-        if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
-        with:
-          name: pyvcell-ode-${{ matrix.platform }}-${{ matrix.python.cibw_version }}-cibw-wheels
-          path: ./wheelhouse/*.whl
 
       - name: Setup tmate session
         if: ${{ failure() }}
@@ -127,21 +101,12 @@ jobs:
 
   WindowsOS:
     name:
-      Build Native Executables and Python Wheels on ${{ matrix.platform }} (for ${{ matrix.python.std_version }})
+      Build Native Executables and Python Wheels on ${{ matrix.platform }} (for python3.10)
     strategy:
       fail-fast: false
       matrix:
-        #platform: [ windows-latest, windows-11-arm ]
-        platform: [ windows-latest ]
-        python:
-          - std_version: "3.10"
-            cibw_version: "cp310-"
-          - std_version: "3.11"
-            cibw_version: "cp311-"
-          - std_version: "3.12"
-            cibw_version: "cp312-"
-          - std_version: "3.13"
-            cibw_version: "cp313-"
+        platform: [ windows-latest, windows-11-arm ]
+        #platform: [ windows-latest ]
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Pre-install Configuration <x86_64>
@@ -196,7 +161,7 @@ jobs:
         run: |
           cd build
           ./conanbuild.ps1
-          cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release
+          cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release -DOPTION_TARGET_PYTHON_BINDING=ON
           cmake --build . --config Release
 
       - name: Make Windows Shared Object Paths Relative
@@ -219,62 +184,70 @@ jobs:
           ctest -VV
           ./bin/SundialsSolverStandalone_x64 || true
 
-      - name: Upload Windows (x86_64) binaries
-        if: matrix.platform == 'windows-latest' && matrix.python.std_version == '3.12' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
+      - name: Upload Windows binaries <x86_64>
+        if: matrix.platform == 'windows-latest' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
         uses: actions/upload-artifact@v7
         with:
           name: win64_x86_64
           path: build/upload/win64.zip
 
-      - name: Upload Windows (ARMv8) binaries
-        if: matrix.platform == 'windows-11-arm' && matrix.python.std_version == '3.12' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
+      - name: Upload Windows binaries <ARM64>
+        if: matrix.platform == 'windows-11-arm' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
         uses: actions/upload-artifact@v7
         with:
           name: win64_arm64
           path: build/upload/win64.zip
 
       - name: Modify Archive Name <ARM64>
-        if: matrix.platform == 'windows-11-arm' && matrix.python.std_version == '3.12' && github.event_name == 'release' && github.event.action == 'published'
+        if: matrix.platform == 'windows-11-arm' && github.event_name == 'release' && github.event.action == 'published'
         run: |
           mv build/upload/win64.zip build/upload/win64arm.zip
 
       - name: Attach Windows Binaries to Release <x86_64>
         uses: softprops/action-gh-release@v3
-        if: matrix.platform == 'windows-latest' && matrix.python.std_version == '3.12' && github.event_name == 'release' && github.event.action == 'published'
+        if: matrix.platform == 'windows-latest' && github.event_name == 'release' && github.event.action == 'published'
         with:
           files: |
             build/upload/win64.zip
 
-      - name: Attach Linux Binaries to Release <ARM64>
+      - name: Attach Windows Binaries to Release <ARM64>
         uses: softprops/action-gh-release@v3
-        if: matrix.platform == 'windows-11-arm' && matrix.python.std_version == '3.12' && github.event_name == 'release' && github.event.action == 'published'
+        if: matrix.platform == 'windows-11-arm' && github.event_name == 'release' && github.event.action == 'published'
         with:
           files: |
             build/upload/win64arm.zip
 
-      - name: Set up Python ${{ matrix.python.std_version  }}
+      - name: Set up Python 3.10
         if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
         uses: actions/setup-python@v6
         with:
-          python-version: ${{ matrix.python.std_version }}
+          python-version: "3.10"
+
+      - name: Copy dll dependencies for python wheels
+        run: |
+          cd build/bin/*.dll pyvcell_odesolver/lib/
 
       - name: Build Wheels (Windows)
         if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
-        env:
-          CC: clang-cl
-          CXX: clang-cl
-          CMAKE_GENERATOR: Ninja
         run: |
-          cd $env:GITHUB_WORKSPACE
-          . $env:GITHUB_WORKSPACE/build/conanbuild.ps1
-          python3 -m pip install build h5py
-          python3 -m build --wheel -o ./wheelhouse -C cmake.args="-DCMAKE_TOOLCHAIN_FILE=${{ env.CONAN_ENV_PATH }}" -C cmake.define.OPTION_TARGET_PYTHON_BINDING=ON
+          python3.10 -m pip install build h5py
+          python3.10 -m build --wheel -o ./wheelhouse
+
+      - name: Re-tag Wheels <x86_64>
+        if: matrix.platform == 'windows-latest' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
+        run: |
+          python3.10 -m wheel tags --remove --platform-tag win-amd64 ./wheelhouse/*.whl 
+
+      - name: Re-tag Wheels <ARM64>
+        if: matrix.platform == 'windows-11-arm' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
+        run: |
+          python3.10 -m wheel tags --remove --platform-tag win-arm64 ./wheelhouse/*.whl 
 
       - name: Upload Python Wheel
         if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
         uses: actions/upload-artifact@v7
         with:
-          name: pyvcell-ode-${{ matrix.platform }}-${{ matrix.python.cibw_version }}-cibw-wheels
+          name: pyvcell-ode-${{ matrix.platform }}
           path: ./wheelhouse/*.whl
 
       - name: Setup tmate session
@@ -285,20 +258,11 @@ jobs:
 
   GNULinux:
     name:
-      Build Native Executables and Python Wheels on ${{ matrix.platform }} (for ${{ matrix.python.std_version }})
+      Build Native Executables and Python Wheels on ${{ matrix.platform }} (for python3.10)
     strategy:
       fail-fast: false
       matrix:
         platform: [ ubuntu-latest, ubuntu-24.04-arm ]
-        python:
-          - std_version: "3.10"
-            cibw_version: "cp310-"
-          - std_version: "3.11"
-            cibw_version: "cp311-"
-          - std_version: "3.12"
-            cibw_version: "cp312-"
-          - std_version: "3.13"
-            cibw_version: "cp313-"
     runs-on: ${{ matrix.platform }}
 
     steps:
@@ -395,34 +359,34 @@ jobs:
           ./bin/SundialsSolverStandalone_x64 || true
 
       - name: Upload Linux (x86_64) binaries
-        if: matrix.platform == 'ubuntu-latest' && matrix.python.std_version == '3.12' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
+        if: matrix.platform == 'ubuntu-latest' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
         uses: actions/upload-artifact@v7
         with:
           name: linux64_x86_64
           path: build/upload/linux64.tgz
 
       - name: Upload Linux (ARM64) binaries
-        if: matrix.platform == 'ubuntu-24.04-arm' && matrix.python.std_version == '3.12' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
+        if: matrix.platform == 'ubuntu-24.04-arm' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
         uses: actions/upload-artifact@v7
         with:
           name: linux64_arm64
           path: build/upload/linux64.tgz
 
       - name: Modify Archive Name <ARM64>
-        if: matrix.platform == 'ubuntu-24.04-arm' && matrix.python.std_version == '3.12' && github.event_name == 'release' && github.event.action == 'published'
+        if: matrix.platform == 'ubuntu-24.04-arm' && github.event_name == 'release' && github.event.action == 'published'
         run: |
           mv build/upload/linux64.tgz build/upload/linux64arm.tgz
 
       - name: Attach Linux Binaries to Release <x86_64>
         uses: softprops/action-gh-release@v3
-        if: matrix.platform == 'ubuntu-latest' && matrix.python.std_version == '3.12' && github.event_name == 'release' && github.event.action == 'published'
+        if: matrix.platform == 'ubuntu-latest' && github.event_name == 'release' && github.event.action == 'published'
         with:
           files: |
             build/upload/linux64.tgz
 
       - name: Attach Linux Binaries to Release <ARM64>
         uses: softprops/action-gh-release@v3
-        if: matrix.platform == 'ubuntu-24.04-arm' && matrix.python.std_version == '3.12' && github.event_name == 'release' && github.event.action == 'published'
+        if: matrix.platform == 'ubuntu-24.04-arm' && github.event_name == 'release' && github.event.action == 'published'
         with:
           files: |
             build/upload/linux64arm.tgz
@@ -439,18 +403,13 @@ jobs:
         uses: pypa/cibuildwheel@v3.4.0
         if: matrix.platform == 'ubuntu-latest' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
         env:
-          CIBW_BUILD: "${{ matrix.python.cibw_version }}*"
           CIBW_SKIP: "*musllinux*"
           CIBW_ARCHS_LINUX: "native"
           CIBW_MANYLINUX_X86_64_IMAGE: 'ghcr.io/virtualcell/fvsolver_manylinux_2_28_x86_64:0.1.3'
           CIBW_REPAIR_WHEEL_COMMAND: 'LD_LIBRARY_PATH=/usr/local/lib/x86_64-unknown-linux-gnu:$LD_LIBRARY_PATH auditwheel repair --disable-isa-ext-check {wheel} -w {dest_dir}'
-          CIBW_CONFIG_SETTINGS_LINUX: >-
-            cmake.args=-DCMAKE_TOOLCHAIN_FILE=/project/build/conan_toolchain.cmake
-            cmake.args=-DOPTION_TARGET_PYTHON_BINDING=ON
           CIBW_ENVIRONMENT_LINUX: CC="clang" CXX="clang++"
           CIBW_BEFORE_BUILD: |
             echo $PWD
-            # dnf install mold perl-core-y
             python3 -m pip install conan
             mkdir -p /root/.conan2/profiles/
             cp conan-profiles/CI-CD/${{ env.CONAN_PROFILE_NAME }} /root/.conan2/profiles/default
@@ -458,19 +417,19 @@ jobs:
             echo "source /project/build/conanbuild.sh" >> ~/.profile
             echo "source /project/build/conanbuild.sh" >> ~/.bashrc
             source /project/build/conanbuild.sh
+            mkdir container_build
+            cmake -B container_build -S . -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="/project/build/conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release -DOPTION_TARGET_PYTHON_BINDING=ON
+            cmake --build container_build --config Release
+            cp ./container_build/bin/*.so ./pyvcell_odesolver/lib/
 
       - name: Build Wheels with CIBuildWheel (via Docker) <ARM64>
         uses: pypa/cibuildwheel@v3.4.0
         if: matrix.platform == 'ubuntu-24.04-arm' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
         env:
-          CIBW_BUILD: "${{ matrix.python.cibw_version }}*"
           CIBW_SKIP: "*musllinux*"
           CIBW_ARCHS_LINUX: "native"
           CIBW_MANYLINUX_AARCH64_IMAGE: 'ghcr.io/virtualcell/fvsolver_manylinux_2_28_aarch64:0.1.3'
           CIBW_REPAIR_WHEEL_COMMAND: 'LD_LIBRARY_PATH=/usr/local/lib/aarch64-unknown-linux-gnu:$LD_LIBRARY_PATH auditwheel repair --disable-isa-ext-check {wheel} -w {dest_dir}'
-          CIBW_CONFIG_SETTINGS_LINUX: >-
-            cmake.args=-DCMAKE_TOOLCHAIN_FILE=/project/build/conan_toolchain.cmake
-            cmake.args=-DOPTION_TARGET_PYTHON_BINDING=ON
           CIBW_ENVIRONMENT_LINUX: CC="clang" CXX="clang++"
           CIBW_BEFORE_BUILD: |
             echo $PWD
@@ -482,13 +441,16 @@ jobs:
             echo "source /project/build/conanbuild.sh" >> ~/.profile
             echo "source /project/build/conanbuild.sh" >> ~/.bashrc
             source /project/build/conanbuild.sh
-
+            mkdir container_build
+            cmake -B container_build -S . -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="/project/build/conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release -DOPTION_TARGET_PYTHON_BINDING=ON
+            cmake --build container_build --config Release
+            cp ./container_build/bin/*.so ./pyvcell_odesolver/lib/
 
       - name: Upload Python Wheel
         if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
         uses: actions/upload-artifact@v7
         with:
-          name: pyvcell-ode-${{ matrix.platform }}-${{ matrix.python.cibw_version }}-cibw-wheels
+          name: pyvcell-ode-${{ matrix.platform }}
           path: ./wheelhouse/*.whl
 
       - name: Setup tmate session
@@ -590,6 +552,30 @@ jobs:
           files: |
             binaries/mac64.tgz
 
+      - name: Copy dylib dependencies for python wheels
+        if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
+        run: |
+          cp binaries/mac64/*.dylib pyvcell_odesolver/lib/
+
+      - name: Install Python 3.10
+        if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.10'
+
+      - name: Build Wheels
+        if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
+        run: |
+          python3.10 -m build --wheel -o ./wheelhouse 
+          python3.10 -m wheel tags --remove --platform-tag macosx_15_0_universal2 *.whl 
+
+      - name: Upload Python Wheel
+        uses: actions/upload-artifact@v7
+        if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
+        with:
+          name: pyvcell-ode-macosx_universal2
+          path: ./wheelhouse/*.whl
+
       - name: Setup tmate session
         if: ${{ failure() }}
         uses: mxschmitt/action-tmate@v3
@@ -615,7 +601,7 @@ jobs:
       - name: Install Python
         uses: actions/setup-python@v6
         with:
-          python-version: '3.12'
+          python-version: '3.10'
 
       - name: Publish wheels to PyPI
         env:

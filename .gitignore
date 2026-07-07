@@ -32,3 +32,9 @@ conan_provider.cmake
 tests/unit/__pycache__/
 
 wheelhouse/
+
+tests/__pycache__/
+
+pyvcell_odesolver/__pycache__/
+
+pyvcell_odesolver/lib/

@@ -4,7 +4,7 @@ from pathlib import Path
 
 from pydantic import BaseModel
 
-from pyvcell_odesolver._internal.native_utils import IsolateManager, VCellNativeLibraryLoader
+from pyvcell_odesolver._internal.native_utils import VCellNativeLibraryLoader
 
 
 class ReturnValue(BaseModel):
@@ -24,12 +24,12 @@ class ODENativeCalls:
 
     def call_version(self) -> ReturnValue:
         try:
-            version_str: str = self.lib.version_ctypes() # should auto-covert due to how we set `restype`
+            version_str: str = self.lib.version_ctypes()
             if version_str is None:
                 error_msg = "Failed to collect and covert version information"
                 logging.error(error_msg)
                 return ReturnValue(success=False, message=error_msg)
-            return ReturnValue(success=True, message=version_str)
+            return ReturnValue(success=True, message=version_str.decode("utf-8"))
         except Exception as e:
             logging.exception("Error in vcml_to_finite_volume_input()", exc_info=e)
             raise

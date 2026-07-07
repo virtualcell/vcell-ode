@@ -7,7 +7,7 @@ def get_library_archs(lib_path: str) -> tuple[str, list[str]]:
     _, ext = os.path.splitext(lib_path)
 
     # ELF (Linux .so files)
-    if ext == ".so" or ".so." in lib_path:
+    if ext == ".so" or ".so." in str(lib_path):
         with open(lib_path, 'rb') as f:
             f.seek(5)
             endian = '<' if f.read(1)[0] == 1 else '>'
@@ -77,7 +77,12 @@ def get_library_archs(lib_path: str) -> tuple[str, list[str]]:
 
     return 'unknown', [ ]
 
-def filter_all_valid_libraries(lib_path_list: list[str]):
+def get_all_valid_libraries_from_dir(lib_dir: str):
+    dir_files = [full_file for f in os.listdir(lib_dir) if os.path.isfile(full_file := os.path.join(lib_dir, f))]
+    return filter_all_valid_libraries(dir_files)
+
+
+def filter_all_valid_libraries(lib_path_list: list[str]) -> list[str]:
     if not lib_path_list:
         raise ValueError("A list must be provided, `None` is not allowed.")
 

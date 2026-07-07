@@ -28,16 +28,12 @@ set (EXE_SRC_FILES
 	SundialsSolverStandalone.cpp
 )
 
-add_library(IDAWin STATIC ${SRC_FILES} ${HEADER_FILES})
-if (OPTION_STATICALLY_LINK)
-	if (OPTION_TARGET_PYTHON_BINDING)
-		message("Linking IDAWin Statically (for python)")
-		target_link_libraries(IDAWin)
-	else ()
-		message("Linking IDAWin Statically")
-		target_link_libraries(IDAWin -static)
-	endif ()
+
+if (OPTION_STATICALLY_LINK AND OPTION_TARGET_PYTHON_BINDING)
+	message("Creating Dynamic IDAWin with statically linked dependencies (for python)")
+	add_library(IDAWin SHARED ${SRC_FILES} ${HEADER_FILES})
 	target_link_libraries(
+		IDAWin
 		sundials -static
 		ExpressionParser -static
 		vcellmessaging -static
@@ -45,8 +41,21 @@ if (OPTION_STATICALLY_LINK)
 		spdlog::spdlog -static
 		# if MinGW is enabled, add `$<$<BOOL:${MINGW}>:ws2_32>`
 	)
+elseif(OPTION_STATICALLY_LINK AND NOT OPTION_TARGET_PYTHON_BINDING)
+	message("Creating IDAWin for static linkage")
+	add_library(IDAWin STATIC ${SRC_FILES} ${HEADER_FILES})
+	target_link_libraries(
+			IDAWin
+			sundials -static
+			ExpressionParser -static
+			vcellmessaging -static
+			argparse -static
+			spdlog::spdlog -static
+			# if MinGW is enabled, add `$<$<BOOL:${MINGW}>:ws2_32>`
+	)
 else ()
-	message("Linking IDAWin Dynamically")
+	message("Creating IDAWin for dynamic linkage.")
+	add_library(IDAWin SHARED ${SRC_FILES} ${HEADER_FILES})
 	target_link_libraries(
 			IDAWin
 			sundials
