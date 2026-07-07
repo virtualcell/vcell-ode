@@ -30,16 +30,23 @@ set (EXE_SRC_FILES
 
 add_library(IDAWin STATIC ${SRC_FILES} ${HEADER_FILES})
 if (OPTION_STATICALLY_LINK)
+	if (OPTION_TARGET_PYTHON_BINDING)
+		message("Linking IDAWin Statically (for python)")
+		target_link_libraries(IDAWin)
+	else ()
+		message("Linking IDAWin Statically")
+		target_link_libraries(IDAWin -static)
+	endif ()
 	target_link_libraries(
-			IDAWin -static
-			sundials -static
-			ExpressionParser -static
-			vcellmessaging -static
-			argparse -static
-			spdlog::spdlog -static
-			# if MinGW is enabled, add `$<$<BOOL:${MINGW}>:ws2_32>`
+		sundials -static
+		ExpressionParser -static
+		vcellmessaging -static
+		argparse -static
+		spdlog::spdlog -static
+		# if MinGW is enabled, add `$<$<BOOL:${MINGW}>:ws2_32>`
 	)
 else ()
+	message("Linking IDAWin Dynamically")
 	target_link_libraries(
 			IDAWin
 			sundials

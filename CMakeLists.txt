@@ -56,19 +56,21 @@ endif ()
 #############################################
 #  Python Binding check
 ##############################################
-if (OPTION_TARGET_PYTHON_BINDING)
-	project(
-			${SKBUILD_PROJECT_NAME}
-			VERSION ${SKBUILD_PROJECT_VERSION}
-			LANGUAGES CXX C
-	)
-	set(OPTION_TARGET_MESSAGING OFF)
-else()
-	project(
-			vcell-ode-numerics
-			LANGUAGES CXX C
-	)
-endif ()
+#if (OPTION_TARGET_PYTHON_BINDING)
+#	project(
+#			${SKBUILD_PROJECT_NAME}
+#			VERSION ${SKBUILD_PROJECT_VERSION}
+#			LANGUAGES CXX C
+#	)
+#	set(OPTION_TARGET_MESSAGING OFF)
+#else()
+#
+#endif ()
+
+project(
+		vcell-ode-numerics
+		LANGUAGES CXX C
+)
 
 #############################################
 #
