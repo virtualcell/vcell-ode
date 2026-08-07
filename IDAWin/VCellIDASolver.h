@@ -2,19 +2,21 @@
 #define VCELLIDASOLVER_H
 
 #include "VCellSundialsSolver.h"
+#include <string>
 
 class VCellIDASolver : public VCellSundialsSolver {
 public:
 	VCellIDASolver();	
-	~VCellIDASolver();
+	~VCellIDASolver() override;
 
-	void solve(double* paramValues=0, bool bPrintProgress=false, FILE* outputFile=0, void (*checkStopRequested)(double, long)=0);
+	void solve(double* paramValues=0, bool bPrintProgress=false, FILE* outputFile=0, void (*checkStopRequested)(double, long)=0) override;
 
 protected:
-	void updateTempRowData(double currTime);
-	void readEquations(std::istream& inputstream);
-	void initialize();
-	string getSolverName() { return "IDA"; }
+	void updateTempRowData(double currTime) override;
+	void readEquations(VCellSolverInputBreakdown& inputBreakdown) override;
+	void initialize() override;
+	std::string getSolverName() override { return "IDA"; }
+	VCellSolverTypes getSolverType() override { return VCellSolverTypes::IDA; }
 
 private:
 	VCell::Expression** rhsExpressions;  // can be rate expression in ODE case or RHS expression in DAE case
@@ -59,8 +61,8 @@ private:
 	void checkIDAFlag(int flag);
 
 	void reInit(realtype t);
-	bool fixInitialDiscontinuities(double t);
-	void updateTandVariableValues(realtype t, N_Vector y);
+	bool fixInitialDiscontinuities(double t) override;
+	void updateTandVariableValues(realtype t, N_Vector y) override;
 
 	void onIDAReturn(realtype Time, int returnCode);
 };

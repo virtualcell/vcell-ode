@@ -1,35 +1,142 @@
 name: CD
 
-on: [push, workflow_dispatch]
+on:
+  workflow_dispatch:
+  pull_request:
+  push:
+    branches:
+      - master
+  release:
+    types:
+      - published
+
 
 jobs:
-  native-build:
+  MacOS:
     name:
-      native-build-${{ matrix.platform }}
+      Build on ${{ matrix.platform }} (for python3.10)
     strategy:
       fail-fast: false
       matrix:
-        platform: [windows-latest, ubuntu-latest, ubuntu-24.04-arm, macos-13, macos-latest]
-        #platform: [windows-latest, windows-11-arm, ubuntu-latest, ubuntu-24.04-arm, macos-13, macos-latest]
-
+        platform: [ macos-15-intel, macos-15 ]
     runs-on: ${{ matrix.platform }}
 
     steps:
       - name: checkout vcell-ode repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
+
+      - name: Install MacOS dependencies <x86_64>
+        if: matrix.platform == 'macos-15-intel'
+        shell: bash
+        run: |
+          brew install conan spdlog
+          conan --version
+          mkdir -p ~/.conan2/profiles/
+          touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
+          cp conan-profiles/CI-CD/MacOS-AMD64_profile.txt ~/.conan2/profiles/default
+
+      - name: Install MacOS dependencies <ARM>
+        if: matrix.platform == 'macos-15'
+        shell: bash
+        run: |
+          brew install conan spdlog
+          conan --version
+          mkdir -p ~/.conan2/profiles/
+          touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
+          cp conan-profiles/CI-CD/MacOS-ARM64_profile.txt ~/.conan2/profiles/default
+
+      - name: Install Dependencies through Conan on MacOS
+        shell: bash
+        run: |
+          conan install . --output-folder build --build=missing          
+
+      - name: Build Mac
+        run: |
+          echo "working dir is $PWD"
+          cd build
+          source conanbuild.sh
+          MACOSX_DEPLOYMENT_TARGET=15.0 cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release -DOPTION_TARGET_PYTHON_BINDING=ON
+          MACOSX_DEPLOYMENT_TARGET=15.0 cmake --build . --config Release
+
+      - name: Fix MacOS shared object paths
+        shell: bash
+        run: |
+          mkdir build/upload
+          cp -r build/lib/* build/bin 
+          cd build/bin
+          ls *_x64   | awk '{print $1}' | xargs -I '{}' otool -L '{}' | grep ")" | grep -v "build" | grep -v "System" | grep -v "/usr/lib/" | awk '{print $1}' | xargs -I '{}' cp -vn '{}' . || true
+          ls *.dylib | awk '{print $1}' | xargs -I '{}' otool -L '{}' | grep ")" | grep -v "build" | grep -v "System" | grep -v "/usr/lib/" | awk '{print $1}' | xargs -I '{}' cp -vn '{}' . || true
+          ls *.dylib | awk '{print $1}' | xargs -I '{}' otool -L '{}' | grep ")" | grep -v "build" | grep -v "System" | grep -v "/usr/lib/" | awk '{print $1}' | xargs -I '{}' cp -vn '{}' . || true
+          chmod u+w,+x *
+          tar czvf ../upload/mac64_bad_paths.tgz .
+          ../../.github/scripts/install_name_tool_macos.sh
+          tar czvf ../upload/mac64.tgz --dereference .
+
+      - name: Test Mac
+        run: |
+          cd build
+          ctest -VV
+          echo "------ running SundialsSolverStandalone_x64 ------"
+          ./bin/SundialsSolverStandalone_x64 || true
+
+      - name: Upload Intel Macos binaries
+        if: matrix.platform == 'macos-15-intel' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos_x86_64
+          path: build/upload/mac64.tgz
+
+      - name: Upload ARM Macos binaries
+        if: matrix.platform == 'macos-15'  && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
+        uses: actions/upload-artifact@v7
+        with:
+          name: macos_arm64
+          path: build/upload/mac64.tgz
+
+      - name: Setup tmate session
+        if: ${{ failure() }}
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: false
+
+
+  WindowsOS:
+    name:
+      Build on ${{ matrix.platform }} (for python3.10)
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ windows-latest, windows-11-arm ]
+        #platform: [ windows-latest ]
+    runs-on: ${{ matrix.platform }}
+    steps:
+      - name: Pre-install Configuration <x86_64>
+        if: matrix.platform == 'windows-latest'
+        shell: bash
+        run: |
+          echo "CONAN_PROFILE_NAME=Windows-AMD64_profile.txt" >> $GITHUB_ENV
+          echo "CONAN_ENV_PATH=${{ github.workspace }}/build/conan_toolchain.cmake" | sed 's/\\/\//g' >> $GITHUB_ENV
+
+      - name: Pre-install Configuration <ARM64>
+        if: matrix.platform == 'windows-11-arm'
+        shell: bash
+        run: |
+          echo "CONAN_PROFILE_NAME=Windows-ARM64_profile.txt" >> $GITHUB_ENV
+          echo "CONAN_ENV_PATH=${{ github.workspace }}/build/conan_toolchain.cmake" | sed 's/\\/\//g' >> $GITHUB_ENV
+      - name: checkout vcell-ode repo
+        uses: actions/checkout@v6
 
       - name: Install Windows Dependencies (Part 0 - Setup LLVM-style)
-        if: matrix.platform == 'windows-latest' || matrix.platform == 'windows-11-arm'
         uses: llvm/actions/setup-windows@main
         with:
           arch: amd64
 
-      - name: Install Windows Dependencies (Part 1 - Configure Conan ...and zip)
-        if: matrix.platform == 'windows-latest' || matrix.platform == 'windows-11-arm'
+      - name: Install Windows Dependencies (Part 1 - Configure Conan ...et all)
         shell: powershell
         run: |
           choco install zip -y
           choco install conan -y
+          vcpkg install spdlog
           $conanDir = "C:\Program Files\Conan\conan"
           $env:PATH = "$conanDir;$env:PATH"
           $conanDir | Set-Content -Path $env:GITHUB_PATH
@@ -37,158 +144,43 @@ jobs:
           "CONAN_HOME=C:\.conan" | Out-File -FilePath $env:GITHUB_ENV -Append
           conan --version
           conan profile detect --force  
+          
 
-      - name: Install Windows Dependencies (Part 2 - Reconfigure Conan) <x86_64>
-        if: matrix.platform == 'windows-latest'
+      - name: Install Windows Dependencies (Part 2 - Reconfigure Conan)
         shell: bash
         run: |
-          cp conan-profiles/CI-CD/Windows-AMD64_profile.txt $CONAN_HOME/profiles/default
-
-      - name: Install Windows Dependencies (Part 2 - Reconfigure Conan) <ARM>
-        if: matrix.platform == 'windows-11-arm'
-        shell: bash
-        run: |
-          cp conan-profiles/CI-CD/Windows-ARM64_profile.txt $CONAN_HOME/profiles/default
-
-      - name: Install MacOS dependencies <x86_64>
-        if: matrix.platform == 'macos-13'
-        shell: bash
-        run: |
-          brew install conan
-          conan --version
-          mkdir -p ~/.conan2/profiles/
-          touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
-          cp conan-profiles/CI-CD/MacOS-AMD64_profile.txt ~/.conan2/profiles/default
-
-      - name: Install MacOS dependencies <ARM>
-        if: matrix.platform == 'macos-latest'
-        shell: bash
-        run: |
-          brew install conan
-          conan --version
-          mkdir -p ~/.conan2/profiles/
-          touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
-          cp conan-profiles/CI-CD/MacOS-ARM64_profile.txt ~/.conan2/profiles/default
-
-      - name: Install Linux Dependencies <x86_64>
-        if: matrix.platform == 'ubuntu-latest'
-        run: |
-          sudo apt update
-          sudo apt upgrade -y
-          sudo apt install -y wget
-          wget --version
-          wget https://github.com/conan-io/conan/releases/download/2.17.0/conan-2.17.0-amd64.deb
-          sudo apt install -y ./conan-*.deb
-          conan --version
-          mkdir -p ~/.conan2/profiles/
-          touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
-          cp conan-profiles/CI-CD/Linux-AMD64_profile.txt ~/.conan2/profiles/default
-
-      - name: Install Linux Dependencies <ARM>
-        if: matrix.platform == 'ubuntu-24.04-arm'
-        run: |
-          sudo apt update
-          python3 -m pip install conan
-          conan --version
-          mkdir -p ~/.conan2/profiles/
-          touch ~/.conan2/profiles/default # if we don't make a file first, cp thinks its a folder that doesn't exist
-          cp conan-profiles/CI-CD/Linux-ARM64_profile.txt ~/.conan2/profiles/default
+          cp conan-profiles/CI-CD/${{ env.CONAN_PROFILE_NAME }} $CONAN_HOME/profiles/default
 
       - name: Install Dependencies through Conan on Windows
-        if: matrix.platform == 'windows-latest' || matrix.platform == 'windows-11-arm'
         shell: powershell
         run: |
           conan install . --output-folder build --build=missing -o include_messaging=False
 
-      - name: Install Dependencies through Conan on MacOS
-        if: matrix.platform == 'macos-13' || matrix.platform == 'macos-latest'
-        shell: bash
-        run: |
-          conan install . --output-folder build --build=missing
+      - name: Set up Python 3.10 <x86_64>
+        if: matrix.platform == 'windows-latest'
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.10"
 
-      - name: Install Dependencies through Conan on Linux <x86_64>
-        if: matrix.platform == 'ubuntu-latest'
-        shell: bash
-        run: |
-          sudo apt --purge remove gcc
-          sudo ln -s /usr/bin/clang /usr/bin/cc
-          sudo apt install mold libc++-dev libc++abi-dev
-          sudo rm /usr/bin/ld
-          sudo ln -s $(which mold) /usr/bin/ld
-          conan install . --output-folder build --build=missing
-
-      - name: Install Dependencies through Conan on Linux <ARM>
-        if: matrix.platform == 'ubuntu-24.04-arm'
-        shell: bash
-        run: |
-          sudo apt --purge remove gcc
-          sudo ln -s /usr/bin/clang /usr/bin/cc
-          sudo ln -s /usr/bin/clang /usr/bin/gcc
-          sudo ln -s /usr/bin/clang++ /usr/bin/g++
-          sudo apt install mold libc++-dev libc++abi-dev
-          sudo rm /usr/bin/ld
-          sudo ln -s $(which mold) /usr/bin/ld
-          conan install . --output-folder build --build=missing
+      - name: Set up Python 3.11 <ARM64>
+        if: matrix.platform == 'windows-11-arm'
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
 
       - name: Build Windows
-        if: matrix.platform == 'windows-latest' || matrix.platform == 'windows-11-arm'
         shell: powershell
         run: |
           cd build
           ./conanbuild.ps1
-          cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release
+          cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release -DOPTION_TARGET_PYTHON_BINDING=ON
           cmake --build . --config Release
 
-      - name: Build Unix
-        if: matrix.platform == 'ubuntu-latest' || matrix.platform == 'ubuntu-24.04-arm' || matrix.platform == 'macos-13' || matrix.platform == 'macos-latest'
-        run: |
-          echo "working dir is $PWD"
-          
-          cd build
-          source conanbuild.sh
-          cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release
-          cmake --build . --config Release
-
-      - name: Test Windows
-        if: matrix.platform == 'windows-latest' || matrix.platform == 'windows-11-arm'
-        run: |
-          cd build
-          ctest -VV
-          ./bin/SundialsSolverStandalone_x64 || true
-
-      - name: Test Unix
-        if: matrix.platform == 'ubuntu-latest' || matrix.platform == 'ubuntu-24.04-arm' || matrix.platform == 'macos-13' || matrix.platform == 'macos-latest'
-        run: |
-          cd build
-
-          ctest -VV
-          
-          echo "------ running SundialsSolverStandalone_x64 ------"
-          ./bin/SundialsSolverStandalone_x64 || true
-
-
-      - name: fix Macos shared object paths
-        if: matrix.platform == 'macos-13' || matrix.platform == 'macos-latest'
+      - name: Make Windows Shared Object Paths Relative
         shell: bash
         run: |
           mkdir build/upload
           cd build/bin
-          rm hello_test TestVCellStoch testzip ziptool || true
-          ls *_x64   | awk '{print $1}' | xargs -I '{}' otool -L '{}' | grep ")" | grep -v "build" | grep -v "System" | awk '{print $1}' | xargs -I '{}' cp -vn '{}' . || true
-          ls *.dylib | awk '{print $1}' | xargs -I '{}' otool -L '{}' | grep ")" | grep -v "build" | grep -v "System" | awk '{print $1}' | xargs -I '{}' cp -vn '{}' . || true
-          ls *.dylib | awk '{print $1}' | xargs -I '{}' otool -L '{}' | grep ")" | grep -v "build" | grep -v "System" | awk '{print $1}' | xargs -I '{}' cp -vn '{}' . || true
-          chmod u+w,+x *
-          tar czvf ../upload/mac64_bad_paths.tgz .
-          ../../.github/scripts/install_name_tool_macos.sh
-          tar czvf ../upload/mac64.tgz --dereference .
-
-      - name: handle shared object paths for Windows native build
-        if: matrix.platform == 'windows-latest' || matrix.platform == 'windows-11-arm'
-        shell: bash
-        run: |
-          mkdir build/upload
-          cd build/bin
-          rm hello_test* *.pdb || true
           ls *.exe | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
           # Currently, Sundials only requires system32 dlls! 
           # ls *.dll | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
@@ -198,61 +190,77 @@ jobs:
           cd ../..
           # fi
 
-      - name: handle shared object paths for Linux native build
-        if: matrix.platform == 'ubuntu-latest' || matrix.platform == 'ubuntu-24.04-arm'
+      - name: Test Windows
+        run: |
+          cd build
+          ctest -VV
+          ./bin/SundialsSolverStandalone_x64 || true
+
+      - name: Upload Windows binaries <x86_64>
+        if: matrix.platform == 'windows-latest' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
+        uses: actions/upload-artifact@v7
+        with:
+          name: win64_x86_64
+          path: build/upload/win64.zip
+
+      - name: Upload Windows binaries <ARM64>
+        if: matrix.platform == 'windows-11-arm' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
+        uses: actions/upload-artifact@v7
+        with:
+          name: win64_arm64
+          path: build/upload/win64.zip
+
+      - name: Modify Archive Name <ARM64>
+        if: matrix.platform == 'windows-11-arm' && github.event_name == 'release' && github.event.action == 'published'
+        run: |
+          mv build/upload/win64.zip build/upload/win64arm.zip
+
+      - name: Attach Windows Binaries to Release <x86_64>
+        uses: softprops/action-gh-release@v3
+        if: matrix.platform == 'windows-latest' && github.event_name == 'release' && github.event.action == 'published'
+        with:
+          files: |
+            build/upload/win64.zip
+
+      - name: Attach Windows Binaries to Release <ARM64>
+        uses: softprops/action-gh-release@v3
+        if: matrix.platform == 'windows-11-arm' && github.event_name == 'release' && github.event.action == 'published'
+        with:
+          files: |
+            build/upload/win64arm.zip
+
+      - name: Copy dll dependencies for python wheels
+        run: |
+          cp build/bin/*.dll pyvcell_odesolver/lib/
+
+      - name: Build Wheels (Windows)
+        if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
+        run: |
+          powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+          $env:Path = "C:\Users\runneradmin\.local\bin;$env:Path"
+          uv --version
+          uv sync --extra build --extra test
+          uv run pytest; if ($LASTEXITCODE -ne 0) { exit 1 }
+          uv build --wheel -o wheelhouse
+
+      - name: Re-tag Wheels <x86_64>
+        if: matrix.platform == 'windows-latest' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
         shell: bash
         run: |
-          mkdir build/upload
-          cd build/bin
-          rm hello_test TestVCellStoch testzip ziptool || true
-          ls *_x64   | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep "=> /" | grep -v "build" | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
-          ls *.so    | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep "=> /" | grep -v "build" | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
-          ls *.so    | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep "=> /" | grep -v "build" | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
-          chmod u+w,+x *
-          tar czvf ../upload/linux64.tgz --dereference .
-          cd ../..
+          uv run python -m wheel tags --remove --platform-tag win_amd64 ./wheelhouse/$(ls ./wheelhouse)
 
-      - name: Upload Intel Macos binaries
-        if: matrix.platform == 'macos-13'
-        uses: actions/upload-artifact@v4
-        with:
-          name: macos_x86_64.tgz
-          path: build/upload/mac_x86_64.tgz
+      - name: Re-tag Wheels <ARM64>
+        if: matrix.platform == 'windows-11-arm' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
+        shell: bash
+        run: |
+          uv run python -m wheel tags --remove --platform-tag win_arm64 ./wheelhouse/$(ls ./wheelhouse)
 
-      - name: Upload ARM Macos binaries
-        if: matrix.platform == 'macos-latest'
-        uses: actions/upload-artifact@v4
+      - name: Upload Python Wheel
+        if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
+        uses: actions/upload-artifact@v7
         with:
-          name: macos_arm64.tgz
-          path: build/upload/mac_arm_64.tgz
-
-      - name: Upload Windows (x86_64) binaries
-        if: matrix.platform == 'windows-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: win64.zip
-          path: build/upload/win_x86_64.zip
-
-      - name: Upload Windows (ARMv8) binaries
-        if: matrix.platform == 'windows-11-arm'
-        uses: actions/upload-artifact@v4
-        with:
-          name: win64.zip
-          path: build/upload/win_ARMv8_64.zip
-
-      - name: Upload Linux (x86_64) binaries
-        if: matrix.platform == 'ubuntu-latest'
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux64.tgz
-          path: build/upload/linux_x86_64.tgz
-
-      - name: Upload Linux (ARMv8) binaries
-        if: matrix.platform == 'ubuntu-24.04-arm'
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux64.tgz
-          path: build/upload/linux_ARMv8_64.tgz
+          name: pyvcell-ode-${{ matrix.platform }}
+          path: ./wheelhouse/*.whl
 
       - name: Setup tmate session
         if: ${{ failure() }}
@@ -260,3 +268,322 @@ jobs:
         with:
           limit-access-to-actor: false
 
+  Linux:
+    name:
+      Build for ${{ matrix.platform.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - name: "GNU AMD64 Linux (glibc 2.28)"
+            type: "gnu_amd64"
+            image: "ghcr.io/virtualcell/fvsolver_manylinux_2_28_x86_64:0.1.3"
+            base: "ubuntu-latest"
+          - name: "GNU ARM64 Linux (glibc 2.28)"
+            type: "gnu_arm64"
+            image: "ghcr.io/virtualcell/fvsolver_manylinux_2_28_aarch64:0.1.3"
+            base: "ubuntu-24.04-arm"
+
+    runs-on: ${{ matrix.platform.base }}
+    container:
+      image: ${{ matrix.platform.image }}
+
+    steps:
+      - name: Install Node.js (required for actions runtime)
+        run: |
+          dnf module list nodejs
+          dnf module enable -y nodejs:24
+          dnf install -y nodejs
+
+      - name: Pre-install Configuration <x86_64>
+        if: matrix.platform.type == 'gnu_amd64'
+        shell: bash
+        run: |
+          echo "CONAN_PROFILE_NAME=Linux-AMD64_profile.txt" >> $GITHUB_ENV
+
+      - name: Pre-install Configuration <ARM64>
+        if: matrix.platform.type == 'gnu_arm64'
+        shell: bash
+        run: |
+          echo "CONAN_PROFILE_NAME=Linux-ARM64_profile.txt" >> $GITHUB_ENV
+
+      - name: checkout vcell-ode repo
+        uses: actions/checkout@v6
+
+      - name: Install Conan and Set Default Profile
+        run: |
+          python3 -m pip install conan
+          mkdir -p ~/.conan2/profiles/
+          cp conan-profiles/CI-CD/${{ env.CONAN_PROFILE_NAME }} ~/.conan2/profiles/default
+
+      - name: Install Dependencies through Conan
+        run: |
+          CC="clang" CXX="clang++" conan install . --output-folder /project/build --build=missing --build="m4/*"
+
+      - name: Build Linux
+        run: |
+          echo "working dir is $PWD"
+          echo "source /project/build/conanbuild.sh" >> ~/.profile
+          echo "source /project/build/conanbuild.sh" >> ~/.bashrc
+          source /project/build/conanbuild.sh
+          mkdir container_build
+          CC="clang" CXX="clang++" cmake -B build -S . -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="/project/build/conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release -DOPTION_TARGET_PYTHON_BINDING=ON
+          CC="clang" CXX="clang++" cmake --build build --config Release
+
+      - name: Make Linux Shared Object Paths Relative
+        shell: bash
+        run: |
+          mkdir build/upload
+          cp -r build/lib/* build/bin
+          cd build/bin
+          ls *_x64   | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep "=> /" | grep -v "build" | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
+          ls *.so    | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep "=> /" | grep -v "build" | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
+          ls *.so    | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep "=> /" | grep -v "build" | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
+          chmod u+w,+x *
+          tar czvf ../upload/linux64.tgz --dereference .
+          cd ../..
+
+      - name: Test Linux
+        run: |
+          cd build
+
+          ctest -VV
+
+          echo "------ running SundialsSolverStandalone_x64 ------"
+          ./bin/SundialsSolverStandalone_x64 || true
+
+      - name: Upload Linux (x86_64) binaries
+        if: matrix.platform.type == 'gnu_amd64' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux64_x86_64
+          path: build/upload/linux64.tgz
+
+      - name: Upload Linux (ARM64) binaries
+        if: matrix.platform.type == 'gnu_arm64' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
+        uses: actions/upload-artifact@v7
+        with:
+          name: linux64_arm64
+          path: build/upload/linux64.tgz
+
+      - name: Modify Archive Name <ARM64>
+        if: matrix.platform.type == 'gnu_arm64' && github.event_name == 'release' && github.event.action == 'published'
+        run: |
+          mv build/upload/linux64.tgz build/upload/linux64arm.tgz
+
+      - name: Attach Linux Binaries to Release <x86_64>
+        uses: softprops/action-gh-release@v3
+        if: matrix.platform.type == 'gnu_amd64' && github.event_name == 'release' && github.event.action == 'published'
+        with:
+          files: |
+            build/upload/linux64.tgz
+
+      - name: Attach Linux Binaries to Release <ARM64>
+        uses: softprops/action-gh-release@v3
+        if: matrix.platform.type == 'gnu_arm64' && github.event_name == 'release' && github.event.action == 'published'
+        with:
+          files: |
+            build/upload/linux64arm.tgz
+
+      - name: Build Python Wheel
+        if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          uv --version
+          cp -r build/lib/* pyvcell_odesolver/lib/
+          uv sync --extra build --extra test
+          uv run pytest
+          uv build --wheel -o wheelhouse
+
+      - name: Re-tag Python Wheel <x86_64>
+        if: matrix.platform.type == 'gnu_amd64' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
+        run: uv run python -m wheel tags --remove --platform-tag manylinux_2_28_x86_64 ./wheelhouse/$(ls ./wheelhouse)
+
+      - name: Re-tag Python Wheel <ARM64>
+        if: matrix.platform.type == 'gnu_arm64' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
+        run: uv run python -m wheel tags --remove --platform-tag manylinux_2_28_aarch64 ./wheelhouse/$(ls ./wheelhouse)
+
+      - name: Upload Python Wheel
+        if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
+        uses: actions/upload-artifact@v7
+        with:
+          name: pyvcell-ode-${{ matrix.platform.type }}
+          path: ./wheelhouse/*.whl
+
+      - name: Setup tmate session
+        if: ${{ failure() }}
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: false
+
+
+  MacOS-Universal:
+    name: Create Universal macOS Binary
+    runs-on: macos-15
+    if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
+    needs:
+      - MacOS
+
+    steps:
+      - name: checkout vcell-ode repo
+        uses: actions/checkout@v6
+
+      # The binaries are "named" (ID'd) different as artifacts, but not as filenames (`mac64.tgz`).
+      # As soon as we download one of them we need to rename it to avoid overwriting the other one.
+      - name: Download macOS-Arm64 binary
+        uses: actions/download-artifact@v8
+        with:
+          name: macos_arm64
+          path: binaries
+
+      - name: Unpack & Rename macOS-Arm64 binary
+        run: |
+          mkdir binaries/arm
+          tar xzvf binaries/mac64.tgz -C binaries/arm
+          rm binaries/mac64.tgz
+
+      - name: Download macOS-x86_64 binary
+        uses: actions/download-artifact@v4
+        with:
+          name: macos_x86_64
+          path: binaries
+
+      - name: Unpack & Rename macOS-x86_64 binary
+        run: |
+          mkdir binaries/intel
+          tar xzvf binaries/mac64.tgz -C binaries/intel
+          rm binaries/mac64.tgz
+
+      # this will go in the log of the run, useful for debugging
+      - name: Inspect binaries directory
+        run: |
+          echo "Contents of binaries/:"
+          ls -Rlh binaries/
+
+      # - name: Setup tmate session for inspection
+      #   uses: mxschmitt/action-tmate@v3
+
+      - name: Combine with lipo
+        run: |
+          mkdir binaries/universal
+          for exe in `ls binaries/arm/ | grep ".*x64"`
+          do
+            echo "fixing ${exe}..."
+            lipo  -create binaries/arm/$exe binaries/intel/${exe} \
+                  -output  binaries/universal/${exe}
+          done
+          
+          for dylib in `ls binaries/arm/ | grep ".*\.dylib"`
+          do
+            echo "fixing ${dylib}..."
+            lipo  -create  binaries/arm/$dylib binaries/intel/${dylib} \
+                  -output  binaries/universal/${dylib}
+          done
+          for entry in `ls binaries/universal/`
+          do
+            echo "confirming ${entry}..."
+            lipo -archs binaries/universal/${entry}
+          done
+          mv binaries/universal binaries/mac64
+          cd binaries/mac64
+          tar czvf macos-universal.tgz .
+
+      - name: Inspect binaries directory
+        run: |
+          echo "Contents of binaries/:"
+          ls -Rlh binaries/
+
+      - name: Upload MacOS (Universal) binaries
+        uses: actions/upload-artifact@v7
+        if: github.event_name == 'release' && github.event.action == 'published'
+        with:
+          name: macos64_universal
+          path: binaries/mac64/macos-universal.tgz
+
+      - name: Rename MacOS Native Binaries for Release
+        if: github.event_name == 'release' && github.event.action == 'published'
+        run: |
+          cp binaries/mac64/macos-universal.tgz binaries/mac64.tgz
+
+      - name: Attach MacOS Native Binaries to Release
+        uses: softprops/action-gh-release@v3
+        if: github.event_name == 'release' && github.event.action == 'published'
+        with:
+          files: |
+            binaries/mac64.tgz
+
+      - name: Copy dylib dependencies for python wheels
+        if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
+        run: |
+          cp binaries/mac64/*.dylib pyvcell_odesolver/lib/
+
+      - name: Install Python 3.10
+        if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.10'
+
+      - name: Build Wheels
+        if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          uv --version
+          uv sync --extra build --extra test
+          uv run pytest
+          uv build --wheel -o wheelhouse
+          uv run python -m wheel tags --remove --platform-tag macosx_15_0_universal2 ./wheelhouse/$(ls ./wheelhouse) 
+
+      - name: Upload Python Wheel
+        uses: actions/upload-artifact@v7
+        if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
+        with:
+          name: pyvcell-ode-macosx_universal2
+          path: ./wheelhouse/*.whl
+
+      - name: Setup tmate session
+        if: ${{ failure() }}
+        uses: mxschmitt/action-tmate@v3
+        with:
+          limit-access-to-actor: false
+
+
+  publish-to-pypi:
+    name: Publish to PyPI
+    needs: [ WindowsOS, MacOS-Universal, Linux ]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'release' && github.event.action == 'published'
+    environment: pypi
+    permissions:
+      id-token: write
+
+    steps:
+      - name: Download all artifacts (wheels and executables)
+        uses: actions/download-artifact@v8
+        with:
+          path: dist_temp/
+
+      - name: Install Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.10'
+
+      - name: Publish wheels to PyPI
+        env:
+          TWINE_USERNAME: __token__
+          TWINE_PASSWORD: ${{ secrets.PYPI_TOKEN }}
+        run: |
+          pip install twine
+          mkdir dist
+          echo "current directory is $(pwd)"
+          ls -al dist*
+          echo "absolute paths of wheels:"
+          find dist_temp -type f -name '*.whl' -exec sh -c 'echo "$(realpath {})"/' \;
+          echo "moving wheels to dist directory"
+          find dist_temp -type f -name '*.whl' -exec sh -c 'mv "$(realpath {})" dist/' \;
+          twine upload --verbose --repository pypi dist/*.whl
+
+      - name: Setup tmate session for PyPI upload failure
+        uses: mxschmitt/action-tmate@v3
+        if: ${{ failure() }}
+        with:
+          limit-access-to-actor: true

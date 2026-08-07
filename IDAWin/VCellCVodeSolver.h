@@ -2,19 +2,21 @@
 #define VCELLCVODESOLVER_H
 
 #include "VCellSundialsSolver.h"
+#include <string>
 
 class VCellCVodeSolver : public VCellSundialsSolver {
 public:
 	VCellCVodeSolver();	
-	~VCellCVodeSolver();
+	~VCellCVodeSolver() override;
 
-	void solve(double* paramValues=0, bool bPrintProgress=false, FILE* outputFile=0, void (*checkStopRequested)(double, long)=0);
+	void solve(double* paramValues=nullptr, bool bPrintProgress=false, FILE* outputFile=nullptr, void (*checkStopRequested)(double, long)=nullptr) override;
 	double RHS(double* allValues, int equationIndex);
 
 protected:
-	void readEquations(std::istream& inputstream);
-	void initialize();
-	string getSolverName() { return "CVODE"; }
+	void readEquations(VCellSolverInputBreakdown& inputBreakdown) override;
+	void initialize() override;
+	std::string getSolverName() override { return "CVODE"; }
+	VCellSolverTypes getSolverType() override { return VCellSolverTypes::CVODE; }
 
 private:
 	VCell::Expression** rateExpressions;
@@ -52,8 +54,8 @@ private:
 	void checkCVodeFlag(int flag);
 
 	void reInit(realtype t);
-	bool fixInitialDiscontinuities(double t);
-	void updateTandVariableValues(realtype t, N_Vector y);
+	bool fixInitialDiscontinuities(double t) override;
+	void updateTandVariableValues(realtype t, N_Vector y) override;
 
 	void onCVodeReturn(realtype Time, int returnCode);
 
