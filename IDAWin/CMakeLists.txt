@@ -35,7 +35,7 @@ if (OPTION_STATICALLY_LINK AND OPTION_TARGET_PYTHON_BINDING)
 	target_link_libraries(
 		IDAWin
 		sundials -static
-		ExpressionParser -static
+		vcellexpressionparser -static
 		vcellmessaging -static
 		argparse -static
 		spdlog::spdlog -static
@@ -47,7 +47,7 @@ elseif(OPTION_STATICALLY_LINK AND NOT OPTION_TARGET_PYTHON_BINDING)
 	target_link_libraries(
 			IDAWin
 			sundials -static
-			ExpressionParser -static
+			vcellexpressionparser -static
 			vcellmessaging -static
 			argparse -static
 			spdlog::spdlog -static
@@ -59,7 +59,7 @@ else ()
 	target_link_libraries(
 			IDAWin
 			sundials
-			ExpressionParser
+			vcellexpressionparser
 			vcellmessaging
 			argparse
 			spdlog::spdlog

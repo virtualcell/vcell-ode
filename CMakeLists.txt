@@ -223,8 +223,8 @@ endif()
 # 
 #######################################
 
-add_subdirectory(VCellMessaging)
-add_subdirectory(ExpressionParser)
+add_subdirectory(vcell-messaging)
+add_subdirectory(vcell-expressionparser)
 add_subdirectory(sundials)
 add_subdirectory(IDAWin)
 enable_testing()

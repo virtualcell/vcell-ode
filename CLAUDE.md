@@ -9,11 +9,19 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **A standalone CLI** (`SundialsSolverStandalone_x64`) that VCell launches as a subprocess against a `.cvodeInput` file.
 - **A Python wheel** (`pyvcell_odesolver`) exposing the same `solve()` entry through a pybind11 module (`pyvcell_odesolver._core`).
 
-The numerical core is CVODE/IDA from a vendored copy of `sundials/`, wrapped by `IDAWin/`, with user rate laws evaluated via `ExpressionParser/`. Optional progress messaging (libcurl → ActiveMQ over the JMS REST bridge) is provided by `VCellMessaging/`.
+The numerical core is CVODE/IDA from a vendored copy of `sundials/`, wrapped by `IDAWin/`, with user rate laws evaluated via the `vcell-expressionparser` submodule. Optional progress messaging (libcurl → ActiveMQ over the JMS REST bridge) is provided by the `vcell-messaging` submodule.
 
 ## Build
 
-CMake-driven. Conan 2.x manages dependencies (`argparse`, `spdlog`, optionally `libcurl`); pybind11 is vendored at `extern/pybind11/`. Canonical native build (matches `.github/workflows/cd.yml`):
+CMake-driven. Conan 2.x manages dependencies (`argparse`, `spdlog`, optionally `libcurl`); pybind11 is vendored at `extern/pybind11/`.
+
+`vcell-expressionparser` and `vcell-messaging` are git submodules — a plain `git clone` leaves both directories empty and CMake fails at `add_subdirectory`. Clone with `--recursive`, or in an existing checkout:
+
+```bash
+git submodule update --init --recursive
+```
+
+Canonical native build (matches `.github/workflows/cd.yml`):
 
 ```bash
 conan install . --output-folder build --build=missing
@@ -36,7 +44,7 @@ python3 -m build --wheel -o ./wheelhouse \
 The complete option set in the root `CMakeLists.txt`:
 
 - `OPTION_TARGET_PYTHON_BINDING` (default OFF) — switches the project to scikit-build-core mode and builds the `_core` pybind11 extension. **Forces `OPTION_TARGET_MESSAGING=OFF`** and skips the `bin/` output-dir setup, so the standalone exe is not produced in this mode.
-- `OPTION_TARGET_MESSAGING` (default OFF) — adds `-DUSE_MESSAGING`, links libcurl, and changes the install layout (`OPTION_EXE_DIRECTORY` → `../bin`). Without it, `VCellMessaging` still builds, but the curl path is replaced by `NullCurlProxy` (the `AbstractCurlProxy` polymorphism — not `#ifdef` forests).
+- `OPTION_TARGET_MESSAGING` (default OFF) — adds `-DUSE_MESSAGING`, links libcurl, and changes the install layout (`OPTION_EXE_DIRECTORY` → `../bin`). Without it, `vcell-messaging` still builds, but the curl path is replaced by `NullCurlProxy` (the `AbstractCurlProxy` polymorphism — not `#ifdef` forests).
 - `OPTION_TEST_WITH_LOCALHOST` — adds `-DTEST_WITH_LOCALHOST`; flips `tests/unit/smoke_test.cpp` to the localhost-keyed expected-output baseline.
 - `OPTION_STATICALLY_LINK`, `OPTION_TARGET_DOCS`, `OPTION_EXTRA_CONFIG_INFO` — niche flags; rarely flipped.
 
@@ -75,7 +83,7 @@ In Python-binding builds, the wheel includes `pyvcell_odesolver/_core.<soabi>.so
 
 Top-level subdirectories and how they fit:
 
-- **`ExpressionParser/`** — math expression parser (AST `Node`s, `Expression`, `SymbolTable`, `StackMachine`). Used by `IDAWin` to evaluate user-supplied rate laws, initial conditions, and event/discontinuity expressions.
+- **`vcell-expressionparser/`** (submodule, target `vcellexpressionparser`) — math expression parser (AST `Node`s, `Expression`, `SymbolTable`, `StackMachine`). Used by `IDAWin` to evaluate user-supplied rate laws, initial conditions, and event/discontinuity expressions. Headers live under `include/`, sources under `src/`. Requires C++20 — the AST nodes build error messages with `std::format`.
 - **`sundials/`** (vendored, modified) — CVODE + IDA + nvec_ser. A thin top-level `add_subdirectory` aggregates `sundials_cvode`/`sundials_ida`/`sundials_nvecserial`/`sundials_lib` into the `sundials` interface target.
 - **`IDAWin/`** — the solver layer. Decomposed (since the stabilization branch) into:
   - `VCellSolver.h` — abstract base (`configureFromInput`, `solve`).
@@ -85,9 +93,9 @@ Top-level subdirectories and how they fit:
   - `VCellCVodeSolver` / `VCellIDASolver` — concrete subclasses for ODE and DAE.
   - `SundialsSolverInterface.{h,cpp}` — the `solve(input, output, tid)` entry shared by the CLI and the Python module.
   - `SundialsSolverStandalone.cpp` — `argparse`-based `main` that calls `solve()`.
-- **`VCellMessaging/`** — progress messaging. Decomposed into:
+- **`vcell-messaging/`** (submodule, target `vcellmessaging`) — progress messaging. Decomposed into:
   - `SimulationMessaging` — the singleton facade.
-  - `MessageEventManager` — owns the worker `std::thread` and the event queue; lock ordering documented in the header (`stopRequested` mutex *before* the queue mutex).
+  - `MessageEventManager` — owns the worker `std::thread` and the event queue; lock ordering documented in the header (**queue mutex *before* the `stopRequested` mutex** — this is the reverse of the pre-submodule in-tree copy, which deadlocked). Shutdown joins the worker rather than waiting for the queue to drain: an empty queue is not the same as "all work finished", since the worker pops under the lock but sends after releasing it.
   - `CurlProxyClasses` — `AbstractCurlProxy` / `NullCurlProxy` (always built) / `CurlProxy` (only under `USE_MESSAGING`); polymorphism replaces the old `#ifdef` forests.
   - `JobEventStatus` — `JobEvent::Status` namespaced enum + `toString`.
   - `WorkerEvent` — the queue payload.
@@ -95,9 +103,9 @@ Top-level subdirectories and how they fit:
 - **`tests/`** — gtest C++ tests, pytest Python tests, and resource files. `RESOURCE_DIR` is passed to the C++ tests via `target_compile_definitions`; the Python test resolves resources via `Path(__file__).parent / "resources"`.
 - **`extern/pybind11/`** — vendored pybind11. Used as the fallback when `find_package(pybind11)` doesn't find a system install.
 - **`conan-profiles/CI-CD/`** — per-platform Conan profiles; CI copies the matching one to `~/.conan2/profiles/default`.
-- **`cmake/modules/`** — `GetGitRevisionDescription.cmake` (used to stamp `g_GIT_DESCRIBE` into `VCellMessaging/src/GitDescribe.cpp`, which the version string surfaces).
+- **`cmake/modules/`** — `GetGitRevisionDescription.cmake` (used to stamp `g_GIT_DESCRIBE` into `vcell-messaging/src/GitDescribe.cpp`, which the version string surfaces).
 
-Public headers for shared libraries live in their own dir and are pulled in via `target_include_directories(... PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})` (or `INTERFACE include/` for `VCellMessaging`/`sundials`) — there are no installed include dirs at configure time.
+Public headers for shared libraries live in their own dir and are pulled in via `target_include_directories(... PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})` (or `include/` for the two submodules and `sundials`) — there are no installed include dirs at configure time.
 
 ## Repo conventions worth knowing
 
