@@ -5,6 +5,7 @@
 #include <ranges>
 #include <cassert>
 #include <cmath>
+#include <cstring>
 #include <sstream>
 #include <string>
 #include <format>

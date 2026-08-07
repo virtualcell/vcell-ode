@@ -1,3 +1,4 @@
+#include <cstring>
 #include <stdexcept>
 #include "OdeResultSet.h"
 #include "Exception.h"
