@@ -17,7 +17,9 @@ jobs:
     steps:
       - name: checkout vcell-ode repo
         uses: actions/checkout@v4
-
+        with:
+          submodules: recursive
+          
       - name: Install Windows Dependencies (Part 0 - Setup LLVM-style)
         if: matrix.platform == 'windows-latest' || matrix.platform == 'windows-11-arm'
         uses: llvm/actions/setup-windows@main
