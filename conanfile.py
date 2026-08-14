@@ -1,4 +1,3 @@
-import sys
 from conan import ConanFile
 from conan.tools.build import check_min_cppstd
 from conan.tools.cmake import CMake, cmake_layout
@@ -21,18 +20,27 @@ class VCellODERecipe(ConanFile):
                        "include_messaging": True,
                        "generate_docs": False}
 
+    def layout(self):
+        cmake_layout(self)
+
     def validate(self):
         check_min_cppstd(self, "17")
 
     def build(self):
         cmake = CMake(self)
-        cmake.definitions["OPTION_TARGET_MESSAGING"] = "ON" if self.options.include_messaging else "OFF"
-        cmake.definitions["OPTION_TARGET_DOCS"] = "ON" if self.options.generate_docs else "OFF"
+        messaging_enabled = (
+            bool(self.options.include_messaging) and self.settings.os != "Windows"
+        )
+        cmake.configure(variables={
+            "OPTION_TARGET_MESSAGING": "ON" if messaging_enabled else "OFF",
+            "OPTION_TARGET_DOCS": "ON" if self.options.generate_docs else "OFF",
+        })
+        cmake.build()
 
     def requirements(self):
         self.requires("argparse/[>=3.2 <4.0]")
         self.requires("spdlog/[>=1.16.0 <2.0]")
-        if self.options.include_messaging:
+        if self.options.include_messaging and self.settings.os != "Windows":
             self.requires("libcurl/[<9.0]")
 
     def build_requirements(self):
@@ -46,8 +54,6 @@ class VCellODERecipe(ConanFile):
         #     self.settings.compiler.libcxx = "libc++"
         if self.settings.os == "Windows":
             del self.options.fPIC
-            if self.options.include_messaging:
-                print("Warning: Windows-builds do not currently support messaging. Building anyway", file=sys.stderr)
 
 
     def configure(self):

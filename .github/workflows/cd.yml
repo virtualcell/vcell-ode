@@ -50,14 +50,14 @@ jobs:
       - name: Install Dependencies through Conan on MacOS
         shell: bash
         run: |
-          conan install . --output-folder build --build=missing          
+          conan install . --build=missing
 
       - name: Build Mac
         run: |
           echo "working dir is $PWD"
           cd build
-          source conanbuild.sh
-          MACOSX_DEPLOYMENT_TARGET=15.0 cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release -DOPTION_TARGET_PYTHON_BINDING=ON
+          source generators/conanbuild.sh
+          MACOSX_DEPLOYMENT_TARGET=15.0 cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="generators/conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release -DOPTION_TARGET_PYTHON_BINDING=ON
           MACOSX_DEPLOYMENT_TARGET=15.0 cmake --build . --config Release
 
       - name: Fix MacOS shared object paths
@@ -129,19 +129,25 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Install Windows Dependencies (Part 0 - Setup LLVM-style)
+        if: matrix.platform == 'windows-latest'
         uses: llvm/actions/setup-windows@main
         with:
           arch: amd64
+
+      - name: Install Windows ARM64 Dependencies (Part 0 - Setup LLVM-style)
+        if: matrix.platform == 'windows-11-arm'
+        uses: llvm/actions/setup-windows@main
+        with:
+          arch: arm64
 
       - name: Install Windows Dependencies (Part 1 - Configure Conan ...et all)
         shell: powershell
         run: |
           choco install zip -y
-          choco install conan -y
-          vcpkg install spdlog
-          $conanDir = "C:\Program Files\Conan\conan"
-          $env:PATH = "$conanDir;$env:PATH"
-          $conanDir | Set-Content -Path $env:GITHUB_PATH
+          py -m pip install --upgrade conan
+          $pythonScripts = py -c "import sysconfig; print(sysconfig.get_path('scripts'))"
+          $env:PATH = "$pythonScripts;$env:PATH"
+          $pythonScripts | Set-Content -Path $env:GITHUB_PATH
           $env:CONAN_HOME = "C:\.conan"
           "CONAN_HOME=C:\.conan" | Out-File -FilePath $env:GITHUB_ENV -Append
           conan --version
@@ -156,7 +162,7 @@ jobs:
       - name: Install Dependencies through Conan on Windows
         shell: powershell
         run: |
-          conan install . --output-folder build --build=missing -o include_messaging=False
+          conan install . --build=missing
 
       - name: Set up Python 3.10 <x86_64>
         if: matrix.platform == 'windows-latest'
@@ -174,8 +180,8 @@ jobs:
         shell: powershell
         run: |
           cd build
-          ./conanbuild.ps1
-          cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release -DOPTION_TARGET_PYTHON_BINDING=ON
+          ./generators/conanbuild.ps1
+          cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="generators/conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release -DOPTION_TARGET_PYTHON_BINDING=ON
           cmake --build . --config Release
 
       - name: Make Windows Shared Object Paths Relative
@@ -320,16 +326,16 @@ jobs:
 
       - name: Install Dependencies through Conan
         run: |
-          CC="clang" CXX="clang++" conan install . --output-folder /project/build --build=missing --build="m4/*"
+          CC="clang" CXX="clang++" conan install . --build=missing --build="m4/*"
 
       - name: Build Linux
         run: |
           echo "working dir is $PWD"
-          echo "source /project/build/conanbuild.sh" >> ~/.profile
-          echo "source /project/build/conanbuild.sh" >> ~/.bashrc
-          source /project/build/conanbuild.sh
+          echo "source /project/build/generators/conanbuild.sh" >> ~/.profile
+          echo "source /project/build/generators/conanbuild.sh" >> ~/.bashrc
+          source /project/build/generators/conanbuild.sh
           mkdir container_build
-          CC="clang" CXX="clang++" cmake -B build -S . -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="/project/build/conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release -DOPTION_TARGET_PYTHON_BINDING=ON
+          CC="clang" CXX="clang++" cmake -B build -S . -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="/project/build/generators/conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release -DOPTION_TARGET_PYTHON_BINDING=ON
           CC="clang" CXX="clang++" cmake --build build --config Release
 
       - name: Make Linux Shared Object Paths Relative

@@ -7,12 +7,13 @@ compiler.runtime=static
 compiler.cstd=23
 compiler.cppstd=20
 compiler.version=21
-compiler.runtime_version=v144
+compiler.runtime_version=v143
 
 [conf]
 tools.cmake.cmaketoolchain:generator=Ninja
 tools.cmake.cmaketoolchain:extra_variables={"CMAKE_FIND_PACKAGE_PREFER_CONFIG": "ON"}
 tools.env.virtualenv:powershell=pwsh
+tools.microsoft.msbuild:vs_version=17
 tools.build:cflags=["-w"]
 tools.build:cxxflags=["-w"]
 
