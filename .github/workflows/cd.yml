@@ -127,6 +127,8 @@ jobs:
           echo "CONAN_ENV_PATH=${{ github.workspace }}/build/conan_toolchain.cmake" | sed 's/\\/\//g' >> $GITHUB_ENV
       - name: checkout vcell-ode repo
         uses: actions/checkout@v6
+        with:
+          submodules: recursive
 
       - name: Install Windows Dependencies (Part 0 - Setup LLVM-style)
         if: matrix.platform == 'windows-latest'
@@ -317,6 +319,8 @@ jobs:
 
       - name: checkout vcell-ode repo
         uses: actions/checkout@v6
+        with:
+          submodules: recursive
 
       - name: Install Conan and Set Default Profile
         run: |
