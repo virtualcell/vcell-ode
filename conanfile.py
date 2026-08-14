@@ -22,6 +22,12 @@ class VCellODERecipe(ConanFile):
 
     def layout(self):
         cmake_layout(self)
+        # Keep the CI build tree flat when Ninja is selected. The workflow and
+        # packaging steps use build/{bin,lib,generators}; cmake_layout() would
+        # otherwise insert build_type (for example, build/Release) for Ninja.
+        if self.conf.get("tools.cmake.cmaketoolchain:generator") == "Ninja":
+            self.folders.build = "build"
+            self.folders.generators = "build/generators"
 
     def validate(self):
         check_min_cppstd(self, "17")
