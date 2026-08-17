@@ -46,7 +46,8 @@ filterwarnings = [
 testpaths = ["tests"]
 
 [tool.ruff]
-src = ["src"]
+# The package lives at the repo root (module-root = "" above), not under src/.
+src = ["."]
 
 [tool.ruff.lint]
 extend-select = [

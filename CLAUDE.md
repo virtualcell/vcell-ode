@@ -9,7 +9,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - **A standalone CLI** (`SundialsSolverStandalone_x64`) that VCell launches as a subprocess against a `.cvodeInput` file.
 - **A Python wheel** (`pyvcell_odesolver`) exposing the same `solve()` entry by `ctypes`-loading the shared `IDAWin` library out of `pyvcell_odesolver/lib/`.
 
-The Python side is **pure Python + ctypes** — there is no compiled extension module. `IDAWin/SundialsSolverInterface.h` exports `extern "C"` shims (`version_ctypes`, `solve_ctypes`) alongside the C++ `version()`/`solve()`, and `pyvcell_odesolver/_internal/native_utils.py` binds them at import time. `extern/pybind11/` is still checked in but is **vestigial — no CMakeLists references it**.
+The Python side is **pure Python + ctypes** — there is no compiled extension module. `IDAWin/SundialsSolverInterface.h` exports `extern "C"` shims (`version_ctypes`, `solve_ctypes`) alongside the C++ `version()`/`solve()`, and `pyvcell_odesolver/_internal/native_utils.py` binds them at import time. The vendored `extern/pybind11/` tree was removed once nothing referenced it.
 
 The numerical core is CVODE/IDA from a vendored copy of `sundials/`, wrapped by `IDAWin/`, with user rate laws evaluated via the `vcell-expressionparser` submodule. Optional progress messaging (libcurl → ActiveMQ over the JMS REST bridge) is provided by the `vcell-messaging` submodule.
 
@@ -17,7 +17,7 @@ The numerical core is CVODE/IDA from a vendored copy of `sundials/`, wrapped by 
 
 CMake-driven. Conan 2.x supplies `spdlog` (and `libcurl` when messaging is on), plus `cmake`/`ninja` as `tool_requires`. Note two dependencies come from CMake `FetchContent`, **not** Conan, so configure needs network access to GitHub:
 
-- `argparse` — root `CMakeLists.txt`, cloned from `p-ranav/argparse` at HEAD (unpinned). `conanfile.py` also requires it, but the FetchContent target is what actually gets linked.
+- `argparse` — root `CMakeLists.txt`, pinned to `v3.2` (matching the `>=3.2 <4.0` range in `conanfile.py`). Conan also resolves argparse, but the FetchContent target is what actually gets linked.
 - `googletest` — `tests/CMakeLists.txt`, pinned to `v1.17.0`.
 
 ### Prerequisites
@@ -108,7 +108,7 @@ In native builds, `build/bin/` contains:
 In Python-binding builds, `build/lib/` holds `libIDAWin.so` — the only shared object, since `vcell*`/`sundials*` build as static archives and get linked into it — alongside those `.a` files and googletest's. `cd.yml` copies the whole directory into `pyvcell_odesolver/lib/`; the archives are inert baggage, because `check_arch.py`/`native_utils.py` only consider files matching the platform's shared-library extension. There is no per-interpreter extension module, so the wheel is ABI-independent of the Python version — only the platform tag matters.
 
 The Python API (`pyvcell_odesolver/sundials.py`, re-exported from `__init__.py`):
-- `version()` — annotated `-> str`, but actually returns the `ReturnValue` pydantic model from `call_version()` unchanged; the version string is in its `.message`. The annotation and the implementation disagree — treat this as a bug, not a contract.
+- `version() -> str` — the solver version string, unwrapped from the `ReturnValue` model's `.message`.
 - `solve(input_file_path, output_file_path, task_id=-1) -> int` — `task_id=-1` skips messaging; positive values are JMS job IDs. Returns **0 on success** (it inverts `ReturnValue.success` to mimic a process exit code).
 
 `pyvcell_odesolver/_internal/` holds the ctypes layer: `native_utils.py` (`VCellNativeLibraryLoader` — scans `pyvcell_odesolver/lib/`, loads each candidate and keeps the first whose `version_ctypes()` contains `"VCell ODE solver (CVODE/IDA) v"`), `native_calls.py` (`ODENativeCalls`, returning pydantic `ReturnValue` models — hence the `pydantic>=2.13.4` runtime dep), and `check_arch.py` (filters candidate libs by architecture).
@@ -137,7 +137,6 @@ Top-level subdirectories and how they fit:
   - `WorkerEvent` — the queue payload.
 - **`pyvcell_odesolver/`** — the Python package (pure Python; see "Produced binaries" above). `lib/` is the drop point for the native shared libraries and ships with only a `README.md` placeholder in git.
 - **`tests/`** — gtest C++ tests, pytest Python tests, and resource files. `RESOURCE_DIR` is passed to the C++ tests via `target_compile_definitions`; the Python test resolves resources via `Path(__file__).parent / "resources"`.
-- **`extern/pybind11/`** — vendored pybind11, left over from the pre-ctypes bindings. **Nothing references it** — no `add_subdirectory`, no `find_package(pybind11)`. Safe to ignore; a candidate for deletion.
 - **`conan-profiles/CI-CD/`** — per-platform Conan profiles; CI copies the matching one to `~/.conan2/profiles/default`.
 - **`cmake/modules/`** — `GetGitRevisionDescription.cmake` (used to stamp `g_GIT_DESCRIBE` into `vcell-messaging/src/GitDescribe.cpp`, which the version string surfaces).
 
@@ -147,8 +146,8 @@ Public headers for shared libraries live in their own dir and are pulled in via 
 
 - Executables always go to `build/bin/`. Shared libraries go to `build/bin/` too in native builds, but stay in `build/lib/` when `OPTION_TARGET_PYTHON_BINDING=ON` — which is why both the native release step and the wheel step in `cd.yml` start with a `cp -r build/lib/* <dest>`.
 - `cmake-build-debug/` is the CLion out-of-source build dir; `build/` is the canonical CI/Docker dir. Both are gitignored.
-- `extern/pybind11/` and `sundials/` are vendored; prefer surgical edits over upstream re-syncs.
+- `sundials/` is vendored; prefer surgical edits over upstream re-syncs.
 - Shared-library path fixup for releases is done post-build by `.github/scripts/install_name_tool_macos.sh` (macOS) and the `ldd | cp` loops in `cd.yml` (Linux/Windows). Don't introduce absolute `rpath`s into CMake.
 - `OPTION_TARGET_PYTHON_BINDING=ON` and `OPTION_TARGET_MESSAGING=ON` are mutually exclusive — configure aborts with `FATAL_ERROR`. The Python wheel never carries a curl dependency.
-- `pyproject.toml` is the source of truth for the Python package: build backend `uv_build`, `requires-python = ">=3.10"`, runtime dep `pydantic`, extras `test` (pytest) and `build` (build, wheel). Ruff lint config lives here too and still points `src = ["src"]` at a directory that no longer exists.
+- `pyproject.toml` is the source of truth for the Python package: build backend `uv_build`, `requires-python = ">=3.10"`, runtime dep `pydantic`, extras `test` (pytest) and `build` (build, wheel). Ruff lint config lives here too.
 - Setting `-DOPTION_EXTRA_CONFIG_INFO=ON` dumps every CMake variable at the end of configure — handy for debugging Conan-generated targets.

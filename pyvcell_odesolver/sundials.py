@@ -2,7 +2,7 @@ from pyvcell_odesolver._internal.native_calls import ODENativeCalls
 
 def version() -> str:
     obj = ODENativeCalls()
-    return obj.call_version()
+    return obj.call_version().message
 
 def solve(input_file_path: str, output_file_path: str, task_id: int = -1) -> int:
     obj = ODENativeCalls()

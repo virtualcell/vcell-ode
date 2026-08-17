@@ -29,13 +29,11 @@ conan-build
 conan-build/*
 conan_provider.cmake
 
-tests/unit/__pycache__/
-
 wheelhouse/
 
-tests/__pycache__/
-
-pyvcell_odesolver/__pycache__/
+# Covers every package dir, including pyvcell_odesolver/_internal/, which the
+# previous per-directory entries missed.
+__pycache__/
 
 pyvcell_odesolver/lib/*.dylib
 pyvcell_odesolver/lib/*.dll
