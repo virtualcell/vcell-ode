@@ -83,7 +83,7 @@ Conan profiles for CI live under `conan-profiles/CI-CD/`, one per `(platform, ar
 Platform notes (full recipes in `cd.yml`):
 - **Linux**: CI builds inside `ghcr.io/virtualcell/fvsolver_manylinux_2_28_{x86_64,aarch64}` containers, which already carry clang/libc++/mold/cmake/ninja; the job only `pip install conan`s on top. On a bare host, install the toolchain yourself (see Prerequisites).
 - **macOS** (arm64 + x86_64): Homebrew `conan` + `spdlog`. arm64 and x86_64 wheels build separately; a `MacOS-Universal` job `lipo`s the resulting `_x64`/`.dylib` files.
-- **Windows**: LLVM toolchain via `llvm/actions/setup-windows`, conan + chocolatey. `OPTION_TARGET_MESSAGING` is OFF on Windows (libcurl path is not built).
+- **Windows**: LLVM toolchain via `llvm/actions/setup-windows`, conan + chocolatey. `OPTION_TARGET_MESSAGING` is OFF on Windows, and `requirements()` in `conanfile.py` drops the `libcurl` requirement there outright, so the workflow needs no `-o include_messaging=False`. Builds with `compiler=clang` + `clang-cl`, for which Conan derives the Visual Studio version from **`compiler.runtime_version`** (`v143`/`v144` → VS 17, `v145` → VS 18) — `tools.microsoft.msbuild:vs_version` is consulted only when `compiler=msvc`. The x86_64 and ARM64 runner images carry different VS versions, so the two profiles pin different values; see the comments in `conan-profiles/CI-CD/Windows-*_profile.txt`.
 - **Docker** (`Dockerfile`): Debian trixie-slim + clang-19 + libc++-19 + mold + ninja + cmake + spdlog from apt; builds with `OPTION_TARGET_MESSAGING=ON` and `OPTION_TEST_WITH_LOCALHOST=ON`. This is the image published to ghcr.io.
 
 ## Tests
