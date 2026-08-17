@@ -335,11 +335,15 @@ jobs:
       - name: Build Linux
         run: |
           echo "working dir is $PWD"
-          echo "source /project/build/generators/conanbuild.sh" >> ~/.profile
-          echo "source /project/build/generators/conanbuild.sh" >> ~/.bashrc
-          source /project/build/generators/conanbuild.sh
-          mkdir container_build
-          CC="clang" CXX="clang++" cmake -B build -S . -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="/project/build/generators/conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release -DOPTION_TARGET_PYTHON_BINDING=ON
+          # Conan writes generators relative to the checkout (see layout() in
+          # conanfile.py), not to the image's /project dir, so keep these paths
+          # anchored to $PWD. Absolute is also the unambiguous form for
+          # CMAKE_TOOLCHAIN_FILE, which CMake otherwise resolves against the
+          # build tree first and the working dir only as a fallback.
+          echo "source $PWD/build/generators/conanbuild.sh" >> ~/.profile
+          echo "source $PWD/build/generators/conanbuild.sh" >> ~/.bashrc
+          source "$PWD/build/generators/conanbuild.sh"
+          CC="clang" CXX="clang++" cmake -B build -S . -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="$PWD/build/generators/conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release -DOPTION_TARGET_PYTHON_BINDING=ON
           CC="clang" CXX="clang++" cmake --build build --config Release
 
       - name: Make Linux Shared Object Paths Relative
