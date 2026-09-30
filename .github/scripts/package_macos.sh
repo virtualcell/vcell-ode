@@ -14,7 +14,8 @@ repo="$(cd "$(dirname "$0")/../.." && pwd)"
 EXES=(SundialsSolverStandalone_x64)
 
 is_system() { case "$1" in /usr/lib/*|/System/*) return 0 ;; *) return 1 ;; esac; }
-deps() { otool -L "$1" | tail -n +2 | awk '{print $1}'; }
+# the load commands only (indented lines; skips the file/architecture header lines)
+deps() { otool -L "$1" | grep -E '^[[:space:]]' | awk '{print $1}'; }
 
 # resolve a load command (absolute, @rpath/, @loader_path/, @executable_path/) to a file
 resolve() {

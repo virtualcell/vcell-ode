@@ -429,7 +429,7 @@ jobs:
               echo "$name: $archs"
               [[ "$archs" == *x86_64* && "$archs" == *arm64* ]] || { echo "::error::$name is not universal"; exit 1; }
               codesign --verify --strict "binaries/mac64/$name"
-              if otool -L "binaries/mac64/$name" | tail -n +2 | awk '{print $1}' | grep -Ev '^(/usr/lib/|/System/|@loader_path/)'; then
+              if otool -L "binaries/mac64/$name" | grep -E '^[[:space:]]' | awk '{print $1}' | grep -Ev '^(/usr/lib/|/System/|@loader_path/)'; then
                 echo "::error::$name has non-portable load paths"; exit 1
               fi
             else
