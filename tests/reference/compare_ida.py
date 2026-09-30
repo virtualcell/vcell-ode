@@ -8,9 +8,11 @@ interpolated linearly onto the reference's time points. Where the time grids coi
 inputs) that is an exact row-by-row comparison.
 
 A value passes when |cand - ref| <= rtol * |ref| + atol * scale, where `scale` is the column's
-largest |ref| (so atol is relative to the variable's magnitude). Exit 0 on pass, 1 on fail.
+largest |ref| (so atol is relative to the variable's magnitude). When the grids differ, linear
+interpolation across an event or discontinuity adds its own error, so --rtol-interp (default 1e-4)
+replaces --rtol. Exit 0 on pass, 1 on fail.
 
-    compare_ida.py reference.ida candidate.ida [--rtol 1e-5] [--atol 1e-8]
+    compare_ida.py reference.ida candidate.ida [--rtol 1e-5] [--rtol-interp 1e-4] [--atol 1e-8]
 """
 
 from __future__ import annotations
@@ -53,6 +55,7 @@ def main() -> int:
     ap.add_argument("reference")
     ap.add_argument("candidate")
     ap.add_argument("--rtol", type=float, default=1e-5)
+    ap.add_argument("--rtol-interp", type=float, default=1e-4)
     ap.add_argument("--atol", type=float, default=1e-8)
     a = ap.parse_args()
 
@@ -66,6 +69,7 @@ def main() -> int:
         print(f"FAIL: end time {ct[-1]} != reference {rr[-1][0]}")
         return 1
     same_grid = len(rr) == len(cr) and all(abs(x[0] - y[0]) <= 1e-12 * max(1.0, abs(x[0])) for x, y in zip(rr, cr))
+    rtol = a.rtol if same_grid else a.rtol_interp
 
     worst = (0.0, "", 0.0)
     failures = 0
@@ -77,7 +81,7 @@ def main() -> int:
             ref = row[k]
             cand = cand_col[i] if same_grid else interp(ct, cand_col, row[0])
             err = abs(cand - ref)
-            tol = a.rtol * abs(ref) + a.atol * scale
+            tol = rtol * abs(ref) + a.atol * scale
             ratio = err / tol if tol > 0 else (0.0 if err == 0 else float("inf"))
             if ratio > worst[0]:
                 worst = (ratio, rh[k], row[0])
@@ -89,7 +93,7 @@ def main() -> int:
     grid = "same time grid" if same_grid else f"interpolated ({len(cr)} candidate rows onto {len(rr)} reference rows)"
     status = "FAIL" if failures else "PASS"
     print(f"{status}: {a.candidate} vs {a.reference}: {len(rh) - 1} variables, {grid}; "
-          f"worst err/tol = {worst[0]:.3g} ({worst[1]} at t={worst[2]:.6g}); rtol={a.rtol} atol={a.atol}"
+          f"worst err/tol = {worst[0]:.3g} ({worst[1]} at t={worst[2]:.6g}); rtol={rtol} atol={a.atol}"
           + (f"; {failures} values out of tolerance" if failures else ""))
     return 1 if failures else 0
 

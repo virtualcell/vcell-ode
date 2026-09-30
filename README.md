@@ -112,6 +112,6 @@ singularity run --containall --bind /path/to/simdata:/simdata vcell-ode_singular
 
 **Reference outputs** (`tests/reference/`): two CVODE inputs (one with discontinuities and events) and one IDA
 DAE input, with the output of the legacy `vcell-solvers` v0.0.44-dev4 Linux binary. `compare_ida.py` checks a
-run against them (rtol 1e-5, atol 1e-8 × column scale, interpolating onto the reference's time points when the
-adaptive steps differ). CI runs them against every archive, the Docker image (non-root, read-only root,
+run against them (atol 1e-8 × column scale; rtol 1e-5 row by row where the time grids coincide, 1e-4 when the
+adaptive steps differ and the run is interpolated onto the reference's time points). CI runs them against every archive, the Docker image (non-root, read-only root,
 `-tid`) and the SIF (`apptainer run --containall`, bind-mounted `/simdata`, `-tid`).
