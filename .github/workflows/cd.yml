@@ -1,3 +1,13 @@
+# Native builds, release archives and Python wheels.
+#
+# Every run builds and tests all platforms and stages the release archives as artifacts; the
+# verify-archives job unpacks each archive on a clean runner and checks it against the committed
+# reference outputs (tests/reference/). On a published release (tag vX.Y.Z on master) the
+# release-assets job attaches the contract's assets (README.md, "Release contract"):
+#
+#   linux64.tgz  linux64arm.tgz  mac64.tgz (universal)  win64.zip  win64arm.zip  SHA256SUMS
+#
+# and publish-to-pypi uploads the wheels.
 name: CD
 
 on:
@@ -9,7 +19,6 @@ on:
   release:
     types:
       - published
-
 
 jobs:
   MacOS:
@@ -26,7 +35,11 @@ jobs:
         uses: actions/checkout@v6
         with:
           submodules: recursive
-    
+
+      - name: Version
+        shell: bash
+        run: .github/scripts/version.sh >> "$GITHUB_ENV"
+
       - name: Install MacOS dependencies <x86_64>
         if: matrix.platform == 'macos-15-intel'
         shell: bash
@@ -57,49 +70,39 @@ jobs:
           echo "working dir is $PWD"
           cd build
           source generators/conanbuild.sh
-          MACOSX_DEPLOYMENT_TARGET=15.0 cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="generators/conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release -DOPTION_TARGET_PYTHON_BINDING=ON
-          MACOSX_DEPLOYMENT_TARGET=15.0 cmake --build . --config Release
-
-      - name: Fix MacOS shared object paths
-        shell: bash
-        run: |
-          mkdir build/upload
-          cp -r build/lib/* build/bin 
-          cd build/bin
-          ls *_x64   | awk '{print $1}' | xargs -I '{}' otool -L '{}' | grep ")" | grep -v "build" | grep -v "System" | grep -v "/usr/lib/" | awk '{print $1}' | xargs -I '{}' cp -vn '{}' . || true
-          ls *.dylib | awk '{print $1}' | xargs -I '{}' otool -L '{}' | grep ")" | grep -v "build" | grep -v "System" | grep -v "/usr/lib/" | awk '{print $1}' | xargs -I '{}' cp -vn '{}' . || true
-          ls *.dylib | awk '{print $1}' | xargs -I '{}' otool -L '{}' | grep ")" | grep -v "build" | grep -v "System" | grep -v "/usr/lib/" | awk '{print $1}' | xargs -I '{}' cp -vn '{}' . || true
-          chmod u+w,+x *
-          tar czvf ../upload/mac64_bad_paths.tgz .
-          ../../.github/scripts/install_name_tool_macos.sh
-          tar czvf ../upload/mac64.tgz --dereference .
+          MACOSX_DEPLOYMENT_TARGET=13.3 cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="generators/conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release -DOPTION_TARGET_PYTHON_BINDING=ON -DVCELL_ODE_VERSION="$VCELL_ODE_VERSION"
+          MACOSX_DEPLOYMENT_TARGET=13.3 cmake --build . --config Release
 
       - name: Test Mac
         run: |
           cd build
           ctest -VV
-          echo "------ running SundialsSolverStandalone_x64 ------"
-          ./bin/SundialsSolverStandalone_x64 || true
 
-      - name: Upload Intel Macos binaries
-        if: matrix.platform == 'macos-15-intel' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
+      - name: Stage the macOS archive (single architecture)
+        shell: bash
+        run: |
+          .github/scripts/package_macos.sh build build/stage "$VCELL_ODE_VERSION"
+          tar czf build/mac64-arch.tgz -C build/stage .
+
+      - name: Upload the staged binaries <x86_64>
+        if: matrix.platform == 'macos-15-intel'
         uses: actions/upload-artifact@v7
         with:
           name: macos_x86_64
-          path: build/upload/mac64.tgz
+          path: build/mac64-arch.tgz
 
-      - name: Upload ARM Macos binaries
-        if: matrix.platform == 'macos-15'  && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
+      - name: Upload the staged binaries <ARM>
+        if: matrix.platform == 'macos-15'
         uses: actions/upload-artifact@v7
         with:
           name: macos_arm64
-          path: build/upload/mac64.tgz
+          path: build/mac64-arch.tgz
 
       - name: Setup tmate session
-        if: ${{ failure() }}
+        if: ${{ failure() && github.event_name == 'workflow_dispatch' }}
         uses: mxschmitt/action-tmate@v3
         with:
-          limit-access-to-actor: false
+          limit-access-to-actor: true
 
 
   WindowsOS:
@@ -109,7 +112,6 @@ jobs:
       fail-fast: false
       matrix:
         platform: [ windows-latest, windows-11-arm ]
-        #platform: [ windows-latest ]
     runs-on: ${{ matrix.platform }}
     steps:
       - name: Pre-install Configuration <x86_64>
@@ -118,6 +120,7 @@ jobs:
         run: |
           echo "CONAN_PROFILE_NAME=Windows-AMD64_profile.txt" >> $GITHUB_ENV
           echo "CONAN_ENV_PATH=${{ github.workspace }}/build/conan_toolchain.cmake" | sed 's/\\/\//g' >> $GITHUB_ENV
+          echo "ARCHIVE_NAME=win64" >> $GITHUB_ENV
 
       - name: Pre-install Configuration <ARM64>
         if: matrix.platform == 'windows-11-arm'
@@ -125,10 +128,16 @@ jobs:
         run: |
           echo "CONAN_PROFILE_NAME=Windows-ARM64_profile.txt" >> $GITHUB_ENV
           echo "CONAN_ENV_PATH=${{ github.workspace }}/build/conan_toolchain.cmake" | sed 's/\\/\//g' >> $GITHUB_ENV
+          echo "ARCHIVE_NAME=win64arm" >> $GITHUB_ENV
+
       - name: checkout vcell-ode repo
         uses: actions/checkout@v6
         with:
           submodules: recursive
+
+      - name: Version
+        shell: bash
+        run: .github/scripts/version.sh >> "$GITHUB_ENV"
 
       - name: Install Windows Dependencies (Part 0 - Setup LLVM-style)
         if: matrix.platform == 'windows-latest'
@@ -153,8 +162,8 @@ jobs:
           $env:CONAN_HOME = "C:\.conan"
           "CONAN_HOME=C:\.conan" | Out-File -FilePath $env:GITHUB_ENV -Append
           conan --version
-          conan profile detect --force  
-          
+          conan profile detect --force
+
 
       - name: Install Windows Dependencies (Part 2 - Reconfigure Conan)
         shell: bash
@@ -183,68 +192,48 @@ jobs:
         run: |
           cd build
           ./generators/conanbuild.ps1
-          cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="generators/conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release -DOPTION_TARGET_PYTHON_BINDING=ON
+          cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="generators/conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release -DOPTION_TARGET_PYTHON_BINDING=ON -DVCELL_ODE_VERSION="$env:VCELL_ODE_VERSION"
           cmake --build . --config Release
 
-      - name: Make Windows Shared Object Paths Relative
+      # The gtest SmokeTests hand an std::ifstream and a FILE* from unit_tests.exe to IDAWin.dll;
+      # with the static CRT (compiler.runtime=static) each module has its own CRT, so that crashes
+      # (0xc0000409) — a test-harness artifact, previously hidden because this step's status came
+      # from its last command. The real paths are covered: the standalone executable by
+      # verify-archives, the DLL's solve() by the wheel's pytest smoke test.
+      - name: Test Windows
         shell: bash
         run: |
-          mkdir build/upload
-          cd build/bin
-          ls *.exe | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
-          # Currently, Sundials only requires system32 dlls! 
-          # ls *.dll | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
-          # ls *.dll | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
-          chmod u+w,+x *
-          zip ../upload/win64.zip ./*
-          cd ../..
-          # fi
-
-      - name: Test Windows
-        run: |
           cd build
-          ctest -VV
-          ./bin/SundialsSolverStandalone_x64 || true
+          ctest -VV -E '^SmokeTest\.'
 
-      - name: Upload Windows binaries <x86_64>
-        if: matrix.platform == 'windows-latest' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
-        uses: actions/upload-artifact@v7
-        with:
-          name: win64_x86_64
-          path: build/upload/win64.zip
-
-      - name: Upload Windows binaries <ARM64>
-        if: matrix.platform == 'windows-11-arm' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
-        uses: actions/upload-artifact@v7
-        with:
-          name: win64_arm64
-          path: build/upload/win64.zip
-
-      - name: Modify Archive Name <ARM64>
-        if: matrix.platform == 'windows-11-arm' && github.event_name == 'release' && github.event.action == 'published'
+      # The executable, the project's DLLs and any non-Windows DLL they load; no test binaries,
+      # import/static libraries or gtest DLLs.
+      - name: Stage the Windows archive
+        shell: bash
         run: |
-          mv build/upload/win64.zip build/upload/win64arm.zip
+          set -euo pipefail
+          stage=build/stage; rm -rf "$stage"; mkdir -p "$stage" build/upload
+          cp build/bin/SundialsSolverStandalone_x64.exe "$stage/"
+          for dll in build/bin/*.dll; do
+            case "$(basename "$dll")" in gtest*|gmock*) ;; *) cp "$dll" "$stage/" ;; esac
+          done
+          ldd "$stage/SundialsSolverStandalone_x64.exe" | grep '=> /' | grep -v build | grep -iv windows | awk '{print $3}' | xargs -I '{}' cp -vn '{}' "$stage/" || true
+          cp LICENSE "$stage/LICENSE"
+          echo "$VCELL_ODE_VERSION" > "$stage/VERSION"
+          ls -l "$stage"
+          (cd "$stage" && zip "../upload/${ARCHIVE_NAME}.zip" ./*)
 
-      - name: Attach Windows Binaries to Release <x86_64>
-        uses: softprops/action-gh-release@v3
-        if: matrix.platform == 'windows-latest' && github.event_name == 'release' && github.event.action == 'published'
+      - name: Upload the archive
+        uses: actions/upload-artifact@v7
         with:
-          files: |
-            build/upload/win64.zip
-
-      - name: Attach Windows Binaries to Release <ARM64>
-        uses: softprops/action-gh-release@v3
-        if: matrix.platform == 'windows-11-arm' && github.event_name == 'release' && github.event.action == 'published'
-        with:
-          files: |
-            build/upload/win64arm.zip
+          name: ${{ env.ARCHIVE_NAME }}
+          path: build/upload/${{ env.ARCHIVE_NAME }}.zip
 
       - name: Copy dll dependencies for python wheels
         run: |
           cp build/bin/*.dll pyvcell_odesolver/lib/
 
       - name: Build Wheels (Windows)
-        if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
         run: |
           powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
           $env:Path = "C:\Users\runneradmin\.local\bin;$env:Path"
@@ -254,29 +243,28 @@ jobs:
           uv build --wheel -o wheelhouse
 
       - name: Re-tag Wheels <x86_64>
-        if: matrix.platform == 'windows-latest' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
+        if: matrix.platform == 'windows-latest'
         shell: bash
         run: |
           uv run python -m wheel tags --remove --platform-tag win_amd64 ./wheelhouse/$(ls ./wheelhouse)
 
       - name: Re-tag Wheels <ARM64>
-        if: matrix.platform == 'windows-11-arm' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
+        if: matrix.platform == 'windows-11-arm'
         shell: bash
         run: |
           uv run python -m wheel tags --remove --platform-tag win_arm64 ./wheelhouse/$(ls ./wheelhouse)
 
       - name: Upload Python Wheel
-        if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
         uses: actions/upload-artifact@v7
         with:
           name: pyvcell-ode-${{ matrix.platform }}
           path: ./wheelhouse/*.whl
 
       - name: Setup tmate session
-        if: ${{ failure() }}
+        if: ${{ failure() && github.event_name == 'workflow_dispatch' }}
         uses: mxschmitt/action-tmate@v3
         with:
-          limit-access-to-actor: false
+          limit-access-to-actor: true
 
   Linux:
     name:
@@ -287,10 +275,12 @@ jobs:
         platform:
           - name: "GNU AMD64 Linux (glibc 2.28)"
             type: "gnu_amd64"
+            archive: "linux64"
             image: "ghcr.io/virtualcell/fvsolver_manylinux_2_28_x86_64:0.1.3"
             base: "ubuntu-latest"
           - name: "GNU ARM64 Linux (glibc 2.28)"
             type: "gnu_arm64"
+            archive: "linux64arm"
             image: "ghcr.io/virtualcell/fvsolver_manylinux_2_28_aarch64:0.1.3"
             base: "ubuntu-24.04-arm"
 
@@ -322,6 +312,10 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Version
+        shell: bash
+        run: .github/scripts/version.sh >> "$GITHUB_ENV"
+
       - name: Install Conan and Set Default Profile
         run: |
           python3 -m pip install conan
@@ -333,6 +327,7 @@ jobs:
           CC="clang" CXX="clang++" conan install . --build=missing --build="m4/*"
 
       - name: Build Linux
+        shell: bash
         run: |
           echo "working dir is $PWD"
           # Conan writes generators relative to the checkout (see layout() in
@@ -343,66 +338,28 @@ jobs:
           echo "source $PWD/build/generators/conanbuild.sh" >> ~/.profile
           echo "source $PWD/build/generators/conanbuild.sh" >> ~/.bashrc
           source "$PWD/build/generators/conanbuild.sh"
-          CC="clang" CXX="clang++" cmake -B build -S . -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="$PWD/build/generators/conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release -DOPTION_TARGET_PYTHON_BINDING=ON
+          CC="clang" CXX="clang++" cmake -B build -S . -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="$PWD/build/generators/conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release -DOPTION_TARGET_PYTHON_BINDING=ON -DVCELL_ODE_VERSION="$VCELL_ODE_VERSION"
           CC="clang" CXX="clang++" cmake --build build --config Release
-
-      - name: Make Linux Shared Object Paths Relative
-        shell: bash
-        run: |
-          mkdir build/upload
-          cp -r build/lib/* build/bin
-          cd build/bin
-          ls *_x64   | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep "=> /" | grep -v "build" | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
-          ls *.so    | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep "=> /" | grep -v "build" | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
-          ls *.so    | awk '{print $1}' | xargs -I '{}' ldd '{}' | grep "=> /" | grep -v "build" | awk '{print $3}' | xargs -I '{}' cp -vn '{}' . || true
-          chmod u+w,+x *
-          tar czvf ../upload/linux64.tgz --dereference .
-          cd ../..
 
       - name: Test Linux
         run: |
           cd build
-
           ctest -VV
 
-          echo "------ running SundialsSolverStandalone_x64 ------"
-          ./bin/SundialsSolverStandalone_x64 || true
-
-      - name: Upload Linux (x86_64) binaries
-        if: matrix.platform.type == 'gnu_amd64' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
-        uses: actions/upload-artifact@v7
-        with:
-          name: linux64_x86_64
-          path: build/upload/linux64.tgz
-
-      - name: Upload Linux (ARM64) binaries
-        if: matrix.platform.type == 'gnu_arm64' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
-        uses: actions/upload-artifact@v7
-        with:
-          name: linux64_arm64
-          path: build/upload/linux64.tgz
-
-      - name: Modify Archive Name <ARM64>
-        if: matrix.platform.type == 'gnu_arm64' && github.event_name == 'release' && github.event.action == 'published'
+      - name: Stage the Linux archive
+        shell: bash
         run: |
-          mv build/upload/linux64.tgz build/upload/linux64arm.tgz
+          .github/scripts/package_linux.sh build build/stage "$VCELL_ODE_VERSION"
+          mkdir -p build/upload
+          tar czf build/upload/${{ matrix.platform.archive }}.tgz -C build/stage .
 
-      - name: Attach Linux Binaries to Release <x86_64>
-        uses: softprops/action-gh-release@v3
-        if: matrix.platform.type == 'gnu_amd64' && github.event_name == 'release' && github.event.action == 'published'
+      - name: Upload the archive
+        uses: actions/upload-artifact@v7
         with:
-          files: |
-            build/upload/linux64.tgz
-
-      - name: Attach Linux Binaries to Release <ARM64>
-        uses: softprops/action-gh-release@v3
-        if: matrix.platform.type == 'gnu_arm64' && github.event_name == 'release' && github.event.action == 'published'
-        with:
-          files: |
-            build/upload/linux64arm.tgz
+          name: ${{ matrix.platform.archive }}
+          path: build/upload/${{ matrix.platform.archive }}.tgz
 
       - name: Build Python Wheel
-        if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           uv --version
@@ -412,31 +369,29 @@ jobs:
           uv build --wheel -o wheelhouse
 
       - name: Re-tag Python Wheel <x86_64>
-        if: matrix.platform.type == 'gnu_amd64' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
+        if: matrix.platform.type == 'gnu_amd64'
         run: uv run python -m wheel tags --remove --platform-tag manylinux_2_28_x86_64 ./wheelhouse/$(ls ./wheelhouse)
 
       - name: Re-tag Python Wheel <ARM64>
-        if: matrix.platform.type == 'gnu_arm64' && (github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published'))
+        if: matrix.platform.type == 'gnu_arm64'
         run: uv run python -m wheel tags --remove --platform-tag manylinux_2_28_aarch64 ./wheelhouse/$(ls ./wheelhouse)
 
       - name: Upload Python Wheel
-        if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
         uses: actions/upload-artifact@v7
         with:
           name: pyvcell-ode-${{ matrix.platform.type }}
           path: ./wheelhouse/*.whl
 
       - name: Setup tmate session
-        if: ${{ failure() }}
+        if: ${{ failure() && github.event_name == 'workflow_dispatch' }}
         uses: mxschmitt/action-tmate@v3
         with:
-          limit-access-to-actor: false
+          limit-access-to-actor: true
 
 
   MacOS-Universal:
     name: Create Universal macOS Binary
     runs-on: macos-15
-    if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
     needs:
       - MacOS
 
@@ -444,128 +399,192 @@ jobs:
       - name: checkout vcell-ode repo
         uses: actions/checkout@v6
 
-      # The binaries are "named" (ID'd) different as artifacts, but not as filenames (`mac64.tgz`).
-      # As soon as we download one of them we need to rename it to avoid overwriting the other one.
-      - name: Download macOS-Arm64 binary
+      - name: Download the arm64 stage
         uses: actions/download-artifact@v8
         with:
           name: macos_arm64
-          path: binaries
+          path: binaries/arm-tgz
 
-      - name: Unpack & Rename macOS-Arm64 binary
-        run: |
-          mkdir binaries/arm
-          tar xzvf binaries/mac64.tgz -C binaries/arm
-          rm binaries/mac64.tgz
-
-      - name: Download macOS-x86_64 binary
-        uses: actions/download-artifact@v4
+      - name: Download the x86_64 stage
+        uses: actions/download-artifact@v8
         with:
           name: macos_x86_64
-          path: binaries
+          path: binaries/intel-tgz
 
-      - name: Unpack & Rename macOS-x86_64 binary
+      # Every Mach-O file becomes a universal (x86_64 + arm64) one, re-signed ad hoc (lipo
+      # invalidates the per-architecture signatures); LICENSE and VERSION are copied as they are.
+      - name: Combine with lipo and sign
+        shell: bash
         run: |
-          mkdir binaries/intel
-          tar xzvf binaries/mac64.tgz -C binaries/intel
-          rm binaries/mac64.tgz
-
-      # this will go in the log of the run, useful for debugging
-      - name: Inspect binaries directory
-        run: |
-          echo "Contents of binaries/:"
-          ls -Rlh binaries/
-
-      # - name: Setup tmate session for inspection
-      #   uses: mxschmitt/action-tmate@v3
-
-      - name: Combine with lipo
-        run: |
-          mkdir binaries/universal
-          for exe in `ls binaries/arm/ | grep ".*x64"`
-          do
-            echo "fixing ${exe}..."
-            lipo  -create binaries/arm/$exe binaries/intel/${exe} \
-                  -output  binaries/universal/${exe}
+          set -euo pipefail
+          mkdir -p binaries/arm binaries/intel binaries/mac64
+          tar xzf binaries/arm-tgz/mac64-arch.tgz -C binaries/arm
+          tar xzf binaries/intel-tgz/mac64-arch.tgz -C binaries/intel
+          for f in binaries/arm/*; do
+            name="${f##*/}"
+            if file "$f" | grep -q Mach-O; then
+              lipo -create "$f" "binaries/intel/$name" -output "binaries/mac64/$name"
+              codesign --force --sign - "binaries/mac64/$name"
+              archs="$(lipo -archs "binaries/mac64/$name")"
+              echo "$name: $archs"
+              [[ "$archs" == *x86_64* && "$archs" == *arm64* ]] || { echo "::error::$name is not universal"; exit 1; }
+              codesign --verify --strict "binaries/mac64/$name"
+              if otool -L "binaries/mac64/$name" | grep -E '^[[:space:]]' | awk '{print $1}' | grep -Ev '^(/usr/lib/|/System/|@loader_path/)'; then
+                echo "::error::$name has non-portable load paths"; exit 1
+              fi
+            else
+              cp "$f" "binaries/mac64/$name"
+            fi
           done
-          
-          for dylib in `ls binaries/arm/ | grep ".*\.dylib"`
-          do
-            echo "fixing ${dylib}..."
-            lipo  -create  binaries/arm/$dylib binaries/intel/${dylib} \
-                  -output  binaries/universal/${dylib}
-          done
-          for entry in `ls binaries/universal/`
-          do
-            echo "confirming ${entry}..."
-            lipo -archs binaries/universal/${entry}
-          done
-          mv binaries/universal binaries/mac64
-          cd binaries/mac64
-          tar czvf macos-universal.tgz .
+          ls -l binaries/mac64
+          mkdir -p binaries/upload
+          tar czf binaries/upload/mac64.tgz -C binaries/mac64 .
 
-      - name: Inspect binaries directory
-        run: |
-          echo "Contents of binaries/:"
-          ls -Rlh binaries/
-
-      - name: Upload MacOS (Universal) binaries
+      - name: Upload MacOS (Universal) archive
         uses: actions/upload-artifact@v7
-        if: github.event_name == 'release' && github.event.action == 'published'
         with:
-          name: macos64_universal
-          path: binaries/mac64/macos-universal.tgz
-
-      - name: Rename MacOS Native Binaries for Release
-        if: github.event_name == 'release' && github.event.action == 'published'
-        run: |
-          cp binaries/mac64/macos-universal.tgz binaries/mac64.tgz
-
-      - name: Attach MacOS Native Binaries to Release
-        uses: softprops/action-gh-release@v3
-        if: github.event_name == 'release' && github.event.action == 'published'
-        with:
-          files: |
-            binaries/mac64.tgz
+          name: mac64
+          path: binaries/upload/mac64.tgz
 
       - name: Copy dylib dependencies for python wheels
-        if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
         run: |
           cp binaries/mac64/*.dylib pyvcell_odesolver/lib/
 
       - name: Install Python 3.10
-        if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
         uses: actions/setup-python@v6
         with:
           python-version: '3.10'
 
       - name: Build Wheels
-        if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
         run: |
           curl -LsSf https://astral.sh/uv/install.sh | sh
           uv --version
           uv sync --extra build --extra test
           uv run pytest
           uv build --wheel -o wheelhouse
-          uv run python -m wheel tags --remove --platform-tag macosx_15_0_universal2 ./wheelhouse/$(ls ./wheelhouse) 
+          uv run python -m wheel tags --remove --platform-tag macosx_15_0_universal2 ./wheelhouse/$(ls ./wheelhouse)
 
       - name: Upload Python Wheel
         uses: actions/upload-artifact@v7
-        if: github.event_name == 'pull_request' || (github.event_name == 'release' && github.event.action == 'published')
         with:
           name: pyvcell-ode-macosx_universal2
           path: ./wheelhouse/*.whl
 
       - name: Setup tmate session
-        if: ${{ failure() }}
+        if: ${{ failure() && github.event_name == 'workflow_dispatch' }}
         uses: mxschmitt/action-tmate@v3
         with:
-          limit-access-to-actor: false
+          limit-access-to-actor: true
+
+
+  # Unpack each release archive on a clean runner (no build tree, no Conan cache) and check the
+  # executable against the committed reference outputs of the legacy vcell-solvers binary.
+  verify-archives:
+    name: Verify ${{ matrix.archive }} on ${{ matrix.container || matrix.runner }}
+    needs: [ Linux, MacOS-Universal, WindowsOS ]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { archive: linux64,    ext: tgz, runner: ubuntu-24.04 }
+          - { archive: linux64,    ext: tgz, runner: ubuntu-24.04, container: "rockylinux:8" }  # glibc 2.28
+          - { archive: linux64arm, ext: tgz, runner: ubuntu-24.04-arm }
+          - { archive: mac64,      ext: tgz, runner: macos-15 }
+          - { archive: mac64,      ext: tgz, runner: macos-15-intel }
+          - { archive: win64,      ext: zip, runner: windows-latest }
+          - { archive: win64arm,   ext: zip, runner: windows-11-arm }
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.container }}
+    steps:
+      - name: Tools for a bare container
+        if: matrix.container != ''
+        run: |
+          dnf module enable -y nodejs:24
+          dnf install -y nodejs python3 tar gzip
+
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: tests/reference
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: ${{ matrix.archive }}
+          path: dl
+
+      - name: Unpack
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/solver"
+          case "${{ matrix.ext }}" in
+            tgz) tar xzf "dl/${{ matrix.archive }}.tgz" -C "$RUNNER_TEMP/solver" ;;
+            zip) unzip -q "dl/${{ matrix.archive }}.zip" -d "$RUNNER_TEMP/solver" ;;
+          esac
+          ls -l "$RUNNER_TEMP/solver"
+          test -f "$RUNNER_TEMP/solver/LICENSE"
+          echo "archive VERSION: $(cat "$RUNNER_TEMP/solver/VERSION")"
+          if ls "$RUNNER_TEMP/solver" | grep -E '^(libc|libm|libpthread|libdl)\.so|\.a$|\.lib$|unit_tests|gtest|gmock'; then
+            echo "::error::glibc, static or test files in the archive"; exit 1
+          fi
+
+      - name: Reference runs (CVODE and IDA) against the legacy binary's output
+        shell: bash
+        run: |
+          set -euo pipefail
+          exe="$RUNNER_TEMP/solver/SundialsSolverStandalone_x64"
+          [ -e "$exe" ] || exe="$exe.exe"
+          py=python3; command -v python3 >/dev/null || py=python
+          out="$RUNNER_TEMP/out"; mkdir -p "$out"
+          cd tests/reference
+          for input in cvode_simple.cvodeInput cvode_events.cvodeInput ida_dae.idaInput; do
+            name="${input%.*}"
+            "$exe" "$input" "$out/$name.ida" -tid 0 > "$out/$name.log" 2>&1 || { cat "$out/$name.log"; exit 1; }
+            $py compare_ida.py "$name.ida.ref" "$out/$name.ida"
+          done
+          # a failing input must fail the process (VCell relies on the exit code)
+          if "$exe" does-not-exist.cvodeInput "$out/none.ida" > /dev/null 2>&1; then
+            echo "::error::a missing input exited 0"; exit 1
+          fi
+
+
+  release-assets:
+    name: Attach release assets
+    if: github.event_name == 'release' && github.event.action == 'published'
+    needs: [ verify-archives ]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dl
+          pattern: "{linux64,linux64arm,mac64,win64,win64arm}"
+          merge-multiple: true
+
+      - name: SHA256SUMS
+        working-directory: dl
+        run: |
+          set -euo pipefail
+          ls -l
+          for f in linux64.tgz linux64arm.tgz mac64.tgz win64.zip win64arm.zip; do test -f "$f"; done
+          sha256sum linux64.tgz linux64arm.tgz mac64.tgz win64.zip win64arm.zip > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Attach to the release
+        uses: softprops/action-gh-release@v3
+        with:
+          files: |
+            dl/linux64.tgz
+            dl/linux64arm.tgz
+            dl/mac64.tgz
+            dl/win64.zip
+            dl/win64arm.zip
+            dl/SHA256SUMS
 
 
   publish-to-pypi:
     name: Publish to PyPI
-    needs: [ WindowsOS, MacOS-Universal, Linux ]
+    needs: [ WindowsOS, MacOS-Universal, Linux, verify-archives ]
     runs-on: ubuntu-latest
     if: github.event_name == 'release' && github.event.action == 'published'
     environment: pypi
@@ -573,10 +592,11 @@ jobs:
       id-token: write
 
     steps:
-      - name: Download all artifacts (wheels and executables)
+      - name: Download the wheels
         uses: actions/download-artifact@v8
         with:
           path: dist_temp/
+          pattern: pyvcell-ode-*
 
       - name: Install Python
         uses: actions/setup-python@v6
@@ -597,9 +617,3 @@ jobs:
           echo "moving wheels to dist directory"
           find dist_temp -type f -name '*.whl' -exec sh -c 'mv "$(realpath {})" dist/' \;
           twine upload --verbose --repository pypi dist/*.whl
-
-      - name: Setup tmate session for PyPI upload failure
-        uses: mxschmitt/action-tmate@v3
-        if: ${{ failure() }}
-        with:
-          limit-access-to-actor: true

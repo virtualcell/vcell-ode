@@ -4,7 +4,7 @@ build-backend = "uv_build"
 
 [project]
 name = "pyvcell_odesolver"
-version = "0.9.4"
+version = "0.9.5"
 description="Virtual Cell CVODE / IDA based ODE solver"
 readme = "README.md"
 authors = [
