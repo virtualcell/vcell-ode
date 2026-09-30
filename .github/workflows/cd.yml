@@ -480,7 +480,7 @@ jobs:
   # Unpack each release archive on a clean runner (no build tree, no Conan cache) and check the
   # executable against the committed reference outputs of the legacy vcell-solvers binary.
   verify-archives:
-    name: Verify ${{ matrix.archive }} on ${{ matrix.runner }}
+    name: Verify ${{ matrix.archive }} on ${{ matrix.container || matrix.runner }}
     needs: [ Linux, MacOS-Universal, WindowsOS ]
     strategy:
       fail-fast: false
@@ -521,7 +521,8 @@ jobs:
             zip) unzip -q "dl/${{ matrix.archive }}.zip" -d "$RUNNER_TEMP/solver" ;;
           esac
           ls -l "$RUNNER_TEMP/solver"
-          test -f "$RUNNER_TEMP/solver/LICENSE" && echo "VERSION: $(cat "$RUNNER_TEMP/solver/VERSION")"
+          test -f "$RUNNER_TEMP/solver/LICENSE"
+          echo "archive VERSION: $(cat "$RUNNER_TEMP/solver/VERSION")"
           if ls "$RUNNER_TEMP/solver" | grep -E '^(libc|libm|libpthread|libdl)\.so|\.a$|\.lib$|unit_tests|gtest|gmock'; then
             echo "::error::glibc, static or test files in the archive"; exit 1
           fi
