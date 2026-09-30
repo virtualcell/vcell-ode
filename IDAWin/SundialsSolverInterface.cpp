@@ -33,7 +33,7 @@ int solve(const std::string& inputFilePath, const std::string& outputFilePath, c
 		if ((outputFile = fopen(outputFilePath.c_str(), "w")) == NULL) {
 			throw std::runtime_error("Could not open output file[" + outputFilePath + "] for writing.");
 		}
-		activateSolver(inputFileStream, outputFile, taskID);
+		returnCode = activateSolver(inputFileStream, outputFile, taskID);
 	} catch (const std::runtime_error& err) {
 		std::cerr << err.what() << std::endl;
 		returnCode = 5;
@@ -48,7 +48,7 @@ int solve(const std::string& inputFilePath, const std::string& outputFilePath, c
 }
 
 
-void activateSolver(std::ifstream& inputFileStream, FILE* outputFile, int taskID) {
+int activateSolver(std::ifstream& inputFileStream, FILE* outputFile, int taskID) {
 	int returnCode = 0;
 	std::string errorMsg;
 	VCellSolver* targetSolver;
@@ -108,10 +108,11 @@ void activateSolver(std::ifstream& inputFileStream, FILE* outputFile, int taskID
 		delete targetSolver;
 	}
 
-	// cleanup
-	SimulationMessaging::cleanupInstanceVar();
-
+	// Report a failure while the messaging instance (and its broker connection) still exists, then
+	// clean up; the other order sent JOB_FAILURE to a fresh stdout-only instance, never the broker.
 	if (!errorMsg.empty()) errExit(returnCode, errorMsg);
+	SimulationMessaging::cleanupInstanceVar();
+	return returnCode; // non-zero on failure, as the legacy vcell-solvers binary returned from main()
 }
 
 void errExit(int returnCode, const std::string &errorMsg) {
