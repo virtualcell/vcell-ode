@@ -3,11 +3,10 @@
 
 #include <Exception.h>
 
-class StoppedByUserException : public VCell::Exception
-{
+class StoppedByUserException final : public VCell::Exception {
 public:
-	StoppedByUserException(string msg);
-	~StoppedByUserException(void) throw( );
+	explicit StoppedByUserException(const string& msg);
+	~StoppedByUserException() noexcept override;
 };
 
 #endif

@@ -14,56 +14,56 @@ The Virtual Cell is a modeling and simulation framework for computational biolog
 Virtual Cell ODE [virtualcell/vcell-ode](https://github.com/virtualcell/vcell-ode) is a collection of numerical 
 simulation libraries and protocols used to process ODEs in the Virtual Cell framework [virtualcell/vcell](https://github.com/virtualcell/vcell)).
 
-## Building VCell ODE
-There are two ways to build VCell ODE, but both start out the same way
-### Step 1: Acquire the source-code
-The source code can be found online at the GitHub repository.
-`git clone https://github.com/virtualcell/vcell.git`
+## Building VCell ODE with Conan on Windows
 
-### Step 2: Install Dependencies 
-You will need to acquire a unix-style C and C++ compiler suite in order to build VCell ODE. Traditionally, this project 
-uses CLang + Mold, but other compiler suites may work. Additionally, you'll need to install the other dependencies for 
-VCell ODE, which can be done in one of two ways:
+Windows builds require a native compiler. MinGW is not supported. Install Visual Studio
+Build Tools with the C++ workload and Windows SDK, plus Python 3.10 or newer. Conan 2,
+CMake 3.16 or newer, and Ninja 1.12 or newer are required; Conan installs CMake and
+Ninja as build requirements, so they do not need to be installed separately.
 
-#### Method 1: Conan Toolchain (Recommended)
-The VCell ODE project uses the C++ dependency management system called ***conan*** to handle dependency management when 
-building VCell ODE. We provide a number of conan-profiles that will provide conan the information need to automatically 
-build the desired toolchain for cmake.
+From a Visual Studio Developer PowerShell, install Conan and create a detected host
+profile:
 
-#### Method 2: Manual Dependency Installation
-If you'd rather manually install all the dependencies build-tools to create VCell CLI, you'll need the following:
-##### Dependencies
-* If you want live messaging while the solver runs: `libcurl` (add `-DOPTION_TARGET_MESSAGING` to cmake call below)
-##### Build Tools
-* `cmake` to perform the build configuration
-* `ninja` (or equivalent) to perform the actual build process
-
-### Step 3: Invoke the Build
-In a shell with conan and/or the other build tools in path, navigate to the project's root directory and 
-run the following commands (tested in bash on unix and powershell on windows)
-
-Note that if using `conan`, you'll need to define a profile. use `conan profile detect --force` to generate one automatically, 
-or use one of the provided ones in `<project_root>/conan-profiles` [link](https://docs.conan.io/2/reference/config_files/profiles.html)
-to further reading on the official `conan` website.
-#### Powershell
-```pwsh
-    mdkir build # Must do if not using conan
-    conan install . --output-folder build --build=missing # If building using conan's help
-    cd build
-    ./conanbuild.ps1 # If building using conan's help
-    cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release
-    cmake --build . --config Release
+```powershell
+py -m pip install --upgrade conan
+$pythonScripts = py -c "import sysconfig; print(sysconfig.get_path('scripts'))"
+$env:Path = "$pythonScripts;$env:Path"
+conan profile detect --force
 ```
 
-```bash
-    mdkir build # must do if not building conan
-    conan install . --output-folder build --build=missing # If building using conan's help
-    cd build
-    ./conanbuild.sh # If building using conan's help
-    cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release
-    cmake --build . --config Release
+If PowerShell still cannot find `conan`, run the following once, then open a new
+PowerShell window:
+
+```powershell
+$pythonScripts = py -c "import sysconfig; print(sysconfig.get_path('scripts'))"
+$userPath = [Environment]::GetEnvironmentVariable('Path', 'User')
+[Environment]::SetEnvironmentVariable('Path', "$userPath;$pythonScripts", 'User')
 ```
 
-### Step 4: Manual user/system install
-Currently, VCell ODE does not have an automated installation script. You will either need to move the resulting executables
-in `<project_root>/build/bin` to an appropriate folder in path, or put said folder into path for your computer.
+Build the solver without messaging:
+
+```powershell
+conan install . --build=missing -o "&:include_messaging=False" -s compiler.cppstd=20
+conan build . -s compiler.cppstd=20
+```
+
+The recipe invokes CMake and Ninja, and produces the executable and DLL under
+`build/bin`. To use the checked-in LLVM/Clang-CL profile instead, replace the install
+command with:
+
+```powershell
+conan install . `
+  --profile:host conan-profiles/CI-CD/Windows-AMD64_profile.txt `
+  --profile:build default `
+  --build=missing -o "&:include_messaging=False" -s:h compiler.cppstd=20
+conan build . -s compiler.cppstd=20
+```
+
+The checked-in profile requires LLVM/Clang 21 (`clang-cl`) on `PATH` and Visual Studio
+2022 Build Tools with the v143 toolset. The auto-detected MSVC profile is recommended
+when using the compiler supplied by Visual Studio. The checked-in profile is configured
+for Visual Studio 2022; it does not target Visual Studio 18.
+
+Messaging is disabled automatically for Windows Conan builds. It remains enabled by
+default on Linux and macOS, where the libcurl dependency is supported. The
+`include_messaging` option can be used to disable it on those platforms when needed.
