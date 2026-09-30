@@ -17,6 +17,7 @@ SYSTEM_LIBS='^(ld-linux.*|linux-vdso|libc|libm|libmvec|libpthread|libdl|librt|li
 command -v patchelf >/dev/null || python3 -m pip install -q patchelf
 
 rm -rf "$stage"; mkdir -p "$stage"
+stage="$(cd "$stage" && pwd)"   # absolute, to match ldd's paths in the checks below
 search="$build/lib:$build/bin"
 # clang's own libc++/libc++abi/libunwind live in its resource tree (e.g.
 # /usr/local/lib/aarch64-unknown-linux-gnu), which the loader does not search by default
