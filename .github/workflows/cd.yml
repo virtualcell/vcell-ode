@@ -70,8 +70,8 @@ jobs:
           echo "working dir is $PWD"
           cd build
           source generators/conanbuild.sh
-          MACOSX_DEPLOYMENT_TARGET=15.0 cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="generators/conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release -DOPTION_TARGET_PYTHON_BINDING=ON -DVCELL_ODE_VERSION="$VCELL_ODE_VERSION"
-          MACOSX_DEPLOYMENT_TARGET=15.0 cmake --build . --config Release
+          MACOSX_DEPLOYMENT_TARGET=13.3 cmake -B . -S .. -G "Ninja" -DCMAKE_TOOLCHAIN_FILE="generators/conan_toolchain.cmake" -DCMAKE_BUILD_TYPE=Release -DOPTION_TARGET_PYTHON_BINDING=ON -DVCELL_ODE_VERSION="$VCELL_ODE_VERSION"
+          MACOSX_DEPLOYMENT_TARGET=13.3 cmake --build . --config Release
 
       - name: Test Mac
         run: |
