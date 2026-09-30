@@ -328,7 +328,8 @@ static void collectIDAEquations(std::ifstream& inputFileStream, VCellSolverInput
 				std::string varName, initialConditionExpression;
 				inputFileStream >> varName;
 				inputBreakdown.modelSettings.VARIABLE_NAMES.push_back(std::move(varName));
-				inputFileStream >> keyword; // INIT keyword
+				std::string initKeyword;
+				inputFileStream >> initKeyword; // INIT keyword (not into `keyword`: that names the section counted below)
 				try {
 					inputBreakdown.modelSettings.INITIAL_CONDITION_EXPRESSIONS.push_back(getExpressionString(inputFileStream));
 				} catch (VCell::Exception& ex) {
@@ -357,11 +358,12 @@ static void collectIDAEquations(std::ifstream& inputFileStream, VCellSolverInput
 				sections.erase(keyword);
 			} else if (keyword == "RHS") {
 				std::size_t numDifferentials, numAlgebraics;
-				inputFileStream >> keyword >> numDifferentials;
-				if (keyword != "DIFFERENTIAL") throw VCell::Exception("Error: Expected keyword `DIFFERENTIAL`, found `" + keyword +"`");
+				std::string rhsKeyword; // not `keyword`: that must still say "RHS" when the section is erased below
+				inputFileStream >> rhsKeyword >> numDifferentials;
+				if (rhsKeyword != "DIFFERENTIAL") throw VCell::Exception("Error: Expected keyword `DIFFERENTIAL`, found `" + rhsKeyword +"`");
 				inputBreakdown.modelSettings.NUM_DIFFERENTIAL = numDifferentials;
-				inputFileStream >> keyword >> numAlgebraics;
-				if (keyword != "ALGEBRAIC") throw VCell::Exception("Error: Expected keyword `ALGEBRAIC`, found `" + keyword +"`");
+				inputFileStream >> rhsKeyword >> numAlgebraics;
+				if (rhsKeyword != "ALGEBRAIC") throw VCell::Exception("Error: Expected keyword `ALGEBRAIC`, found `" + rhsKeyword +"`");
 				inputBreakdown.modelSettings.NUM_ALGEBRAIC = numAlgebraics;
 				if (numDifferentials + numAlgebraics != numOfEquations) {
 					throw VCell::Exception(std::format("The sum of differential ({}) and algebraic ({}) equations does not equal the total number of equations ({})", numDifferentials, numAlgebraics, numOfEquations));
