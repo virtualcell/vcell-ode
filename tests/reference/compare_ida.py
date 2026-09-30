@@ -15,14 +15,15 @@ replaces --rtol. Exit 0 on pass, 1 on fail.
     compare_ida.py reference.ida candidate.ida [--rtol 1e-5] [--rtol-interp 1e-4] [--atol 1e-8]
 """
 
-from __future__ import annotations
-
 import argparse
 import bisect
 import sys
+from typing import List, Tuple
+
+# Python 3.6-compatible (Rocky/RHEL 8's python3), stdlib only.
 
 
-def load(path: str) -> tuple[list[str], list[list[float]]]:
+def load(path: str) -> Tuple[List[str], List[List[float]]]:
     with open(path) as f:
         lines = [line for line in f.read().splitlines() if line.strip()]
     if not lines:
@@ -35,7 +36,7 @@ def load(path: str) -> tuple[list[str], list[list[float]]]:
     return header, rows
 
 
-def interp(ts: list[float], col: list[float], t: float) -> float:
+def interp(ts: List[float], col: List[float], t: float) -> float:
     j = bisect.bisect_left(ts, t)
     if j < len(ts) and ts[j] == t:
         # several rows can share a time (a discontinuity or event); take the last one, as the

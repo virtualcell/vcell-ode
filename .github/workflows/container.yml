@@ -84,6 +84,25 @@ jobs:
             python3 tests/reference/compare_ida.py "tests/reference/$name.ida.ref" "$work/$name.ida"
           done
 
+      # Messaging ON: with a JMS_PARAM block and -tid, every run must deliver JOB_COMPLETED
+      # (WorkerEvent_Status=1003) for its task id to the broker's REST endpoint before exiting — a
+      # stub on the host stands in for ActiveMQ. Repeated, since a lost final message is intermittent.
+      - name: Smoke — Docker, messaging delivers JOB_COMPLETED
+        run: |
+          set -euxo pipefail
+          work="$RUNNER_TEMP/msg"; mkdir -p "$work"; chmod 0777 "$work"
+          python3 tests/reference/stub_broker.py 8161 "$work/broker.log" &
+          stub=$!; trap 'kill $stub' EXIT; sleep 1
+          { cat tests/reference/cvode_simple.cvodeInput; printf '\nJMS_PARAM_BEGIN\nJMS_BROKER 127.0.0.1:8161\nJMS_USER clientUser dummy\nJMS_QUEUE workerEvent\nJMS_TOPIC serviceControl\nVCELL_USER ci\nSIMULATION_KEY 42\nJOB_INDEX 0\nJMS_PARAM_END\n'; } > "$work/msg.cvodeInput"
+          for tid in 1 2 3 4 5; do
+            docker run --rm --network host --read-only --user 12345:12345 -v "$work:/simdata" vcell-ode:ci \
+              "$EXE" /simdata/msg.cvodeInput "/simdata/msg$tid.ida" -tid "$tid"
+            grep "TaskID=$tid&" "$work/broker.log" | grep -q "WorkerEvent_Status=1003&" \
+              || { echo "::error::JOB_COMPLETED for -tid $tid never reached the broker"; cat "$work/broker.log"; exit 1; }
+            python3 tests/reference/compare_ida.py tests/reference/cvode_simple.ida.ref "$work/msg$tid.ida"
+          done
+          cut -c1-160 "$work/broker.log"
+
       # Apptainer runs the image read-only under --containall — the cluster's conditions — with argv
       # exactly as SlurmProxy writes it: bare executable name, /simdata paths, trailing -tid.
       - name: Install Apptainer
@@ -107,6 +126,13 @@ jobs:
             python3 tests/reference/compare_ida.py "tests/reference/$name.ida.ref" "$work/$name.ida"
           done
           rc=0; apptainer run --containall "$sif" not-a-solver || rc=$?; test "$rc" = 2
+          # messaging from the SIF (host network): JOB_COMPLETED must reach the broker
+          python3 tests/reference/stub_broker.py 8162 "$work/broker.log" &
+          stub=$!; trap 'kill $stub' EXIT; sleep 1
+          sed 's/127.0.0.1:8161/127.0.0.1:8162/' "$RUNNER_TEMP/msg/msg.cvodeInput" > "$work/msg.cvodeInput"
+          apptainer run --containall --bind "$work:/simdata" "$sif" \
+            "$EXE" /simdata/msg.cvodeInput /simdata/msg.ida -tid 7
+          grep "TaskID=7&" "$work/broker.log" | grep -q "WorkerEvent_Status=1003&"
 
       # --- publishing (master and published releases only) ---------------------------------------
       - name: Tags
