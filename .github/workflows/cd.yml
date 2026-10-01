@@ -536,7 +536,7 @@ jobs:
           py=python3; command -v python3 >/dev/null || py=python
           out="$RUNNER_TEMP/out"; mkdir -p "$out"
           cd tests/reference
-          for input in cvode_simple.cvodeInput cvode_events.cvodeInput ida_dae.idaInput; do
+          for input in cvode_simple.cvodeInput cvode_events.cvodeInput cvode_delayed_events.cvodeInput ida_dae.idaInput; do
             name="${input%.*}"
             "$exe" "$input" "$out/$name.ida" -tid 0 > "$out/$name.log" 2>&1 || { cat "$out/$name.log"; exit 1; }
             $py compare_ida.py "$name.ida.ref" "$out/$name.ida"

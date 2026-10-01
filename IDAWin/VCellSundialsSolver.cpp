@@ -439,9 +439,13 @@ void VCellSundialsSolver::testEventTriggers(realtype Time) {
 	auto compLambda = [](const EventExecution *e1, const EventExecution *e2) {
 		return e1->timeToExecuteEventAt < e2->timeToExecuteEventAt;
 	};
-	std::ranges::sort(eventExecutions, compLambda);
+	// eventExeList is ordered by execution time, and executeEvents only ever looks at its front, so the new
+	// executions must be merged into it, not appended: an event triggered now with a short delay can be due
+	// before one already waiting. stable_sort + merge keep equal times in the order they were queued (existing
+	// executions first, then the new ones in event order), as the legacy insertion did.
+	std::ranges::stable_sort(eventExecutions, compLambda);
 	std::list eventExecutionsSorted(std::make_move_iterator(eventExecutions.begin()), std::make_move_iterator(eventExecutions.end()));
-	eventExeList.splice(eventExeList.end(), eventExecutionsSorted);
+	eventExeList.merge(eventExecutionsSorted, compLambda);
 }
 
 bool VCellSundialsSolver::executeEvents(const realtype realTimeVar) {
