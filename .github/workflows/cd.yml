@@ -366,15 +366,26 @@ jobs:
           cp -r build/lib/* pyvcell_odesolver/lib/
           uv sync --extra build --extra test
           uv run pytest
-          uv build --wheel -o wheelhouse
+          uv build --wheel -o dist
 
-      - name: Re-tag Python Wheel <x86_64>
-        if: matrix.platform.type == 'gnu_amd64'
-        run: uv run python -m wheel tags --remove --platform-tag manylinux_2_28_x86_64 ./wheelhouse/$(ls ./wheelhouse)
-
-      - name: Re-tag Python Wheel <ARM64>
-        if: matrix.platform.type == 'gnu_arm64'
-        run: uv run python -m wheel tags --remove --platform-tag manylinux_2_28_aarch64 ./wheelhouse/$(ls ./wheelhouse)
+      # libIDAWin.so links clang's libc++, libc++abi and libunwind, which a stock Linux does not have (the release
+      # archive bundles them too, package_linux.sh). auditwheel copies them into the wheel (pyvcell_odesolver.libs/)
+      # and sets the rpath; it starts from a platform-tagged wheel and finds them in clang's resource tree.
+      - name: Repair the Python wheel (bundle the C++ runtime)
+        shell: bash
+        run: |
+          set -euo pipefail
+          arch="$(uname -m)"
+          uv run python -m wheel tags --remove --platform-tag "linux_$arch" ./dist/$(ls ./dist)
+          search=""
+          for lib in libc++.so.1 libc++abi.so.1 libunwind.so.1; do
+            p="$(clang++ -print-file-name="$lib" 2>/dev/null || true)"
+            if [ -n "$p" ] && [ "${p#/}" != "$p" ] && [ -e "$p" ]; then search="$search:$(dirname "$p")"; fi
+          done
+          AUDITWHEEL=auditwheel; command -v auditwheel > /dev/null || AUDITWHEEL="uvx auditwheel"
+          LD_LIBRARY_PATH="${search#:}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
+            $AUDITWHEEL repair --plat "manylinux_2_28_$arch" -w wheelhouse ./dist/*.whl
+          $AUDITWHEEL show wheelhouse/*.whl
 
       - name: Upload Python Wheel
         uses: actions/upload-artifact@v7
@@ -547,6 +558,48 @@ jobs:
           fi
 
 
+  verify-wheels:
+    name: Verify the ${{ matrix.wheel }} wheel on ${{ matrix.container || matrix.runner }}
+    needs: [ Linux ]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { wheel: gnu_amd64, runner: ubuntu-24.04 }
+          - { wheel: gnu_amd64, runner: ubuntu-24.04, container: "rockylinux:8" }  # glibc 2.28
+          - { wheel: gnu_arm64, runner: ubuntu-24.04-arm }
+    runs-on: ${{ matrix.runner }}
+    container: ${{ matrix.container }}
+    steps:
+      - name: Tools for a bare container
+        if: matrix.container != ''
+        run: |
+          dnf module enable -y nodejs:24
+          dnf install -y nodejs python3.11 python3.11-pip
+
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: tests/reference
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: pyvcell-ode-${{ matrix.wheel }}
+          path: dl
+
+      # a clean system, without clang's runtime: the wheel must carry everything libIDAWin.so loads
+      - name: Install the wheel and solve a reference input
+        shell: bash
+        run: |
+          set -euo pipefail
+          py=python3; command -v python3.11 > /dev/null && py=python3.11
+          $py -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install -q dl/*.whl
+          cd tests/reference
+          "$RUNNER_TEMP/venv/bin/python" -c "import pyvcell_odesolver as o; print(o.version())"
+          "$RUNNER_TEMP/venv/bin/python" -c "import sys, pyvcell_odesolver as o; sys.exit(o.solve('cvode_simple.cvodeInput', sys.argv[1], 0))" "$RUNNER_TEMP/cvode_simple.ida"
+          "$RUNNER_TEMP/venv/bin/python" compare_ida.py cvode_simple.ida.ref "$RUNNER_TEMP/cvode_simple.ida"
+
+
   release-assets:
     name: Attach release assets
     if: github.event_name == 'release' && github.event.action == 'published'
@@ -584,7 +637,7 @@ jobs:
 
   publish-to-pypi:
     name: Publish to PyPI
-    needs: [ WindowsOS, MacOS-Universal, Linux, verify-archives ]
+    needs: [ WindowsOS, MacOS-Universal, Linux, verify-archives, verify-wheels ]
     runs-on: ubuntu-latest
     if: github.event_name == 'release' && github.event.action == 'published'
     environment: pypi
