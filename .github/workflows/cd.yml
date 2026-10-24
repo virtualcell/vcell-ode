@@ -383,9 +383,18 @@ jobs:
             if [ -n "$p" ] && [ "${p#/}" != "$p" ] && [ -e "$p" ]; then search="$search:$(dirname "$p")"; fi
           done
           AUDITWHEEL=auditwheel; command -v auditwheel > /dev/null || AUDITWHEEL="uvx auditwheel"
-          LD_LIBRARY_PATH="${search#:}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}" \
-            $AUDITWHEEL repair --plat "manylinux_2_28_$arch" -w wheelhouse ./dist/*.whl
+          export LD_LIBRARY_PATH="${search#:}${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
+          $AUDITWHEEL repair --plat "manylinux_2_28_$arch" -w wheelhouse ./dist/*.whl
+          # auditwheel counts libatomic (which libc++ needs) as a system library, but a minimal RHEL 8 lacks it:
+          # put it beside the bundled libc++, whose rpath is $ORIGIN (the release archive bundles it too)
+          libatomic="$(ldd "$(clang++ -print-file-name=libc++.so.1)" | awk '$1 == "libatomic.so.1" {print $3}')"
+          if [ -n "$libatomic" ]; then
+            uv run python -m wheel unpack -d unpacked ./wheelhouse/*.whl
+            cp -L "$libatomic" unpacked/*/pyvcell_odesolver.libs/libatomic.so.1
+            uv run python -m wheel pack -d wheelhouse unpacked/*
+          fi
           $AUDITWHEEL show wheelhouse/*.whl
+          python3 -m zipfile -l wheelhouse/*.whl | grep -E '\.so'
 
       - name: Upload Python Wheel
         uses: actions/upload-artifact@v7
