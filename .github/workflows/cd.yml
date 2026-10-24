@@ -390,7 +390,9 @@ jobs:
           libatomic="$(ldd "$(clang++ -print-file-name=libc++.so.1)" | awk '$1 == "libatomic.so.1" {print $3}')"
           if [ -n "$libatomic" ]; then
             uv run python -m wheel unpack -d unpacked ./wheelhouse/*.whl
-            cp -L "$libatomic" unpacked/*/pyvcell_odesolver.libs/libatomic.so.1
+            libcxx="$(find unpacked -name 'libc++-*.so*' | head -1)"
+            if [ -z "$libcxx" ]; then find unpacked; echo "::error::no bundled libc++ in the repaired wheel"; exit 1; fi
+            cp -L "$libatomic" "$(dirname "$libcxx")/libatomic.so.1"
             uv run python -m wheel pack -d wheelhouse unpacked/*
           fi
           $AUDITWHEEL show wheelhouse/*.whl
