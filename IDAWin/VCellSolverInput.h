@@ -42,7 +42,7 @@ struct VCellSolverInputBreakdown {
 	struct SteadyStateSettings {
 		realtype RESOLUTION;
 		realtype DERIVATION_FACTOR; // how far to newton step to satisfy df/dt
-		realtype MAX_ITERATIONS; // how many times to newton-step before giving up
+		int MAX_ITERATIONS; // how many times to newton-step before giving up
 		realtype MAX_FORWARD_DURATION;
 		VCellSteadyStateStopCriteria STOP_CRITERIA;
 	};

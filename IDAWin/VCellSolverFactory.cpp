@@ -38,10 +38,10 @@ VCellSolver* VCellSolverFactory::produceVCellSolver(std::ifstream& inputFileStre
 		case VCellSolverTypes::IDA:
 			desiredSolver = new VCellIDASolver();
 			break;
-		// case VCellSolverTypes::STEADY_STATE:
-		// 	break;
+		case VCellSolverTypes::STEADY_STATE:
+			throw VCell::Exception("Steady-state solver (CSSS) is not yet implemented");
 		default:
-			throw new VCell::Exception("Unknown VCellSolver type");
+			throw VCell::Exception("Unknown VCellSolver type");
 	}
 	try {
 		desiredSolver->configureFromInput(inputBreakdown);
@@ -394,21 +394,25 @@ static void collectIDAEquations(std::ifstream& inputFileStream, VCellSolverInput
 Input format:
 	... (STEADY_STATE TRUE)
 	RESOLUTION 0.0000000001
-	MAX_NEWTON_ITERATIONS
-	MAXIMUM_FORWARD_DURATION
+	MAX_NEWTON_ITERATIONS 50
+	MAXIMUM_FORWARD_DURATION 1000000000
 	DERIVATION_FACTOR 0.001
 	STOP_CRITERIA DISTANCE_AND_RATE
 	...
 --------------------------------------------------------------*/
 static void collectSteadyStateTerms(std::ifstream& inputFileStream, VCellSolverInputBreakdown& inputBreakdown) {
-	std::unordered_set<std::string> sections = {"RESOLUTION", "MAX_NEWTON_ITERATIONS",
+	static const std::unordered_set<std::string> ALL_SECTIONS = {"RESOLUTION", "MAX_NEWTON_ITERATIONS",
 		"MAXIMUM_FORWARD_DURATION", "DERIVATION_FACTOR", "STOP_CRITERIA"};
+	std::unordered_set<std::string> remainingSections = ALL_SECTIONS;
 
 	do {
 		std::string keyword;
-		inputFileStream >> keyword;
+		if (!(inputFileStream >> keyword)) throw VCell::Exception("Unexpected end of input in steady state section");
+		if (!ALL_SECTIONS.contains(keyword)) throw VCell::Exception("Unknown steady state keyword `" + keyword + "`");
+		if (!remainingSections.erase(keyword)) throw VCell::Exception("Duplicate section `" + keyword + "` detected.");
+
 		if (keyword == "RESOLUTION") { inputFileStream >> inputBreakdown.steadyStateSettings.RESOLUTION; }
-		else if (keyword == "MAXIMUM_NEWTON_ITERATIONS") { inputFileStream >> inputBreakdown.steadyStateSettings.MAX_ITERATIONS; }
+		else if (keyword == "MAX_NEWTON_ITERATIONS") { inputFileStream >> inputBreakdown.steadyStateSettings.MAX_ITERATIONS; }
 		else if (keyword == "MAXIMUM_FORWARD_DURATION") { inputFileStream >> inputBreakdown.steadyStateSettings.MAX_FORWARD_DURATION; }
 		else if (keyword == "DERIVATION_FACTOR") { inputFileStream >> inputBreakdown.steadyStateSettings.DERIVATION_FACTOR; }
 		else if (keyword == "STOP_CRITERIA") {
@@ -418,11 +422,10 @@ static void collectSteadyStateTerms(std::ifstream& inputFileStream, VCellSolverI
 			else if (stopCriteria == "RATE_ONLY") { inputBreakdown.steadyStateSettings.STOP_CRITERIA = VCellSteadyStateStopCriteria::RATE_ONLY; }
 			else if (stopCriteria == "DISTANCE_AND_RATE") { inputBreakdown.steadyStateSettings.STOP_CRITERIA = VCellSteadyStateStopCriteria::DISTANCE_AND_RATE; }
 			else if (stopCriteria == "DISTANCE_OR_RATE") { inputBreakdown.steadyStateSettings.STOP_CRITERIA = VCellSteadyStateStopCriteria::DISTANCE_OR_RATE; }
-			else throw VCell::Exception("Unknown stop criteria `" + keyword + "`");
-		} else throw VCell::Exception("Unknown steady state keyword `" + keyword + "`");
-		if (!sections.contains(keyword)) throw VCell::Exception("Duplicate section `" + keyword + "` detected.");
-		sections.erase(keyword);
-	} while (!sections.empty());
+			else throw VCell::Exception("Unknown stop criteria `" + stopCriteria + "`");
+		}
+		if (inputFileStream.fail()) throw VCell::Exception("Missing or invalid value for steady state keyword `" + keyword + "`");
+	} while (!remainingSections.empty());
 }
 
 static void loadJMSInfo(std::istream &ifsInput, int taskID) {
