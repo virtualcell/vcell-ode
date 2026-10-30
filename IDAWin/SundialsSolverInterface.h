@@ -21,7 +21,8 @@ IDAWIN_API std::string version();
 
 IDAWIN_API int solve(const std::string& inputFilePath, const std::string& outputFilePath, const int taskID);
 
-IDAWIN_API void activateSolver(std::ifstream& inputFileStream, FILE* outputFile, int taskID);
+/// Returns 0 on success (or when stopped by the user), otherwise a negative error code; the message goes to stderr.
+IDAWIN_API int activateSolver(std::ifstream& inputFileStream, FILE* outputFile, int taskID);
 
 // C-bound functions
 extern "C" IDAWIN_API const char* version_ctypes();

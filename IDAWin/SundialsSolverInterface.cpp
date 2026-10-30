@@ -33,7 +33,7 @@ int solve(const std::string& inputFilePath, const std::string& outputFilePath, c
 		if ((outputFile = fopen(outputFilePath.c_str(), "w")) == NULL) {
 			throw std::runtime_error("Could not open output file[" + outputFilePath + "] for writing.");
 		}
-		activateSolver(inputFileStream, outputFile, taskID);
+		returnCode = activateSolver(inputFileStream, outputFile, taskID);
 	} catch (const std::runtime_error& err) {
 		std::cerr << err.what() << std::endl;
 		returnCode = 5;
@@ -48,7 +48,7 @@ int solve(const std::string& inputFilePath, const std::string& outputFilePath, c
 }
 
 
-void activateSolver(std::ifstream& inputFileStream, FILE* outputFile, int taskID) {
+int activateSolver(std::ifstream& inputFileStream, FILE* outputFile, int taskID) {
 	int returnCode = 0;
 	std::string errorMsg;
 	VCellSolver* targetSolver;
@@ -112,6 +112,7 @@ void activateSolver(std::ifstream& inputFileStream, FILE* outputFile, int taskID
 	SimulationMessaging::cleanupInstanceVar();
 
 	if (!errorMsg.empty()) errExit(returnCode, errorMsg);
+	return returnCode;
 }
 
 void errExit(int returnCode, const std::string &errorMsg) {

@@ -490,6 +490,12 @@ double VCellSundialsSolver::getNextEventTime() {
 	return DBL_MAX;
 }
 
+void VCellSundialsSolver::resetEvents() {
+	for (EventExecution* elem : eventExeList) delete elem;
+	eventExeList.clear();
+	for (int i = 0; i < numEvents; i++) events[i]->triggerValue = false;
+}
+
 void VCellSundialsSolver::checkStopRequested(double time, long numIterations) {
 	#ifdef USE_MESSAGING
 	auto instVar = SimulationMessaging::getInstVar();

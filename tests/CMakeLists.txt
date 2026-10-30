@@ -20,6 +20,9 @@ add_executable(unit_tests
         unit/smoke_test.cpp
         unit/hello_test.cpp
         unit/message_processing_test.cpp
+        unit/steady_state_test.cpp
+        # compiled in directly: its symbols are not exported from the IDAWin DLL on Windows
+        ${CMAKE_SOURCE_DIR}/IDAWin/SteadyStateLinearAlgebra.cpp
 )
 target_link_libraries(unit_tests PRIVATE
         IDAWin

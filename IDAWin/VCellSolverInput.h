@@ -39,12 +39,20 @@ struct VCellSolverInputBreakdown {
 		long KEEP_EVERY = 0.0l;
 	};
 
+	// Defaults mirror COPASI's CNewtonMethod / CSteadyStateMethod parameter defaults, except
+	// ACCEPT_NEGATIVE: VCell variables are not necessarily concentrations (e.g. voltages).
+	// Only the first five fields are read from the input file; the rest keep their defaults.
 	struct SteadyStateSettings {
-		realtype RESOLUTION;
-		realtype DERIVATION_FACTOR; // how far to newton step to satisfy df/dt
-		int MAX_ITERATIONS; // how many times to newton-step before giving up
-		realtype MAX_FORWARD_DURATION;
-		VCellSteadyStateStopCriteria STOP_CRITERIA;
+		realtype RESOLUTION = 1.0e-9;
+		realtype DERIVATION_FACTOR = 1.0e-3; // relative perturbation for the finite-difference Jacobian
+		int MAX_ITERATIONS = 50; // how many times to newton-step before giving up
+		realtype MAX_FORWARD_DURATION = 1.0e9;
+		VCellSteadyStateStopCriteria STOP_CRITERIA = DISTANCE_AND_RATE;
+		realtype MAX_BACKWARD_DURATION = 1.0e6;
+		bool USE_NEWTON = true;
+		bool USE_INTEGRATION = true;
+		bool USE_BACK_INTEGRATION = false;
+		bool ACCEPT_NEGATIVE = true;
 	};
 
 	struct DiscontinuityComponents {

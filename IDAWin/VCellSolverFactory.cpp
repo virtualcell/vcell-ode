@@ -13,6 +13,7 @@
 #include "Exception.h"
 #include "VCellCVodeSolver.h"
 #include "VCellIDASolver.h"
+#include "VCellSteadyStateSolver.h"
 #ifdef USE_MESSAGING
 #include <VCELL/SimulationMessaging.h>
 #endif
@@ -39,7 +40,8 @@ VCellSolver* VCellSolverFactory::produceVCellSolver(std::ifstream& inputFileStre
 			desiredSolver = new VCellIDASolver();
 			break;
 		case VCellSolverTypes::STEADY_STATE:
-			throw VCell::Exception("Steady-state solver (CSSS) is not yet implemented");
+			desiredSolver = new VCellSteadyStateSolver();
+			break;
 		default:
 			throw VCell::Exception("Unknown VCellSolver type");
 	}

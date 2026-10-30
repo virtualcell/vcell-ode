@@ -7,7 +7,8 @@ set (SRC_FILES
 		VCellCVodeSolver.cpp
 		VCellIDASolver.cpp
 		VCellSundialsSolver.cpp
-		SteadyStateDriver.cpp
+		SteadyStateLinearAlgebra.cpp
+		VCellSteadyStateSolver.cpp
 		VCellSolverFactory.cpp
 		VCellSolverInput.cpp
 )
@@ -18,9 +19,10 @@ set (HEADER_FILES
 		VCellSolver.h
 		VCellSolverInput.h
 		VCellSundialsSolver.h
+		SteadyStateLinearAlgebra.h
 		VCellCVodeSolver.h
 		VCellIDASolver.h
-        SteadyStateDriver.h
+        VCellSteadyStateSolver.h
 		SundialsSolverInterface.h
 )
 
