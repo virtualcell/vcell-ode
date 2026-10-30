@@ -108,11 +108,11 @@ int activateSolver(std::ifstream& inputFileStream, FILE* outputFile, int taskID)
 		delete targetSolver;
 	}
 
-	// cleanup
-	SimulationMessaging::cleanupInstanceVar();
-
+	// Report a failure while the messaging instance (and its broker connection) still exists, then
+	// clean up; the other order sent JOB_FAILURE to a fresh stdout-only instance, never the broker.
 	if (!errorMsg.empty()) errExit(returnCode, errorMsg);
-	return returnCode;
+	SimulationMessaging::cleanupInstanceVar();
+	return returnCode; // non-zero on failure, as the legacy vcell-solvers binary returned from main()
 }
 
 void errExit(int returnCode, const std::string &errorMsg) {

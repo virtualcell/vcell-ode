@@ -110,7 +110,13 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)  # .dylib, .so (non-
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)  # .lib, .a (static libs / import libs)
 
 include(GetGitRevisionDescription)
-git_describe(GIT_DESCRIBE)
+# VCELL_ODE_VERSION (e.g. -DVCELL_ODE_VERSION=0.9.5) overrides `git describe`: release and image
+# builds pass it, since the Docker build context has no .git and CI checkouts may lack tags.
+if (DEFINED VCELL_ODE_VERSION AND NOT VCELL_ODE_VERSION STREQUAL "")
+	set(GIT_DESCRIBE "${VCELL_ODE_VERSION}")
+else()
+	git_describe(GIT_DESCRIBE)
+endif()
 
 if (NOT OPTION_TARGET_PYTHON_BINDING)
 	set(CMAKE_LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin)

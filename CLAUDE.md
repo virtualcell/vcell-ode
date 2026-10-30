@@ -69,7 +69,7 @@ uv run pytest
 uv build --wheel -o wheelhouse
 ```
 
-The wheel is then re-tagged for the manylinux platform with `uv run python -m wheel tags --remove --platform-tag manylinux_2_28_x86_64 ...`. `pyvcell_odesolver/lib/` is committed with only a `README.md` placeholder; forgetting the `cp` yields a wheel that imports but raises `OSError: Could not find the shared library` from `native_utils.py`.
+On Linux the wheel is then re-tagged `linux_<arch>` and repaired with `auditwheel repair --plat manylinux_2_28_<arch>`, which bundles clang's libc++/libc++abi/libunwind into `pyvcell_odesolver.libs/`; `libatomic` is copied in beside them by hand, because auditwheel treats it as a system library and minimal RHEL 8 lacks it. `pyvcell_odesolver/lib/` is committed with only a `README.md` placeholder; forgetting the `cp` yields a wheel that imports but raises `OSError: Could not find the shared library` from `native_utils.py`.
 
 The complete option set in the root `CMakeLists.txt`:
 
@@ -83,8 +83,10 @@ Conan profiles for CI live under `conan-profiles/CI-CD/`, one per `(platform, ar
 Platform notes (full recipes in `cd.yml`):
 - **Linux**: CI builds inside `ghcr.io/virtualcell/fvsolver_manylinux_2_28_{x86_64,aarch64}` containers, which already carry clang/libc++/mold/cmake/ninja; the job only `pip install conan`s on top. On a bare host, install the toolchain yourself (see Prerequisites).
 - **macOS** (arm64 + x86_64): Homebrew `conan` + `spdlog`. arm64 and x86_64 wheels build separately; a `MacOS-Universal` job `lipo`s the resulting `_x64`/`.dylib` files.
-- **Windows**: LLVM toolchain via `llvm/actions/setup-windows`, conan + chocolatey. `OPTION_TARGET_MESSAGING` is OFF on Windows, and `requirements()` in `conanfile.py` drops the `libcurl` requirement there outright, so the workflow needs no `-o include_messaging=False`. Builds with `compiler=clang` + `clang-cl`, for which Conan derives the Visual Studio version from **`compiler.runtime_version`** (`v143`/`v144` → VS 17, `v145` → VS 18) — `tools.microsoft.msbuild:vs_version` is consulted only when `compiler=msvc`. The x86_64 and ARM64 runner images carry different VS versions, so the two profiles pin different values; see the comments in `conan-profiles/CI-CD/Windows-*_profile.txt`.
-- **Docker** (`Dockerfile`): Debian trixie-slim + clang-19 + libc++-19 + mold + ninja + cmake + spdlog from apt; builds with `OPTION_TARGET_MESSAGING=ON` and `OPTION_TEST_WITH_LOCALHOST=ON`. This is the image published to ghcr.io.
+- **Windows**: LLVM toolchain via `llvm/actions/setup-windows`, conan + chocolatey. `OPTION_TARGET_MESSAGING` is OFF on Windows, and `requirements()` in `conanfile.py` drops the `libcurl` requirement there outright, so the workflow needs no `-o include_messaging=False`. Builds with `compiler=clang` + `clang-cl`, for which Conan derives the Visual Studio version from **`compiler.runtime_version`** (`v143`/`v144` → VS 17, `v145` → VS 18) — `tools.microsoft.msbuild:vs_version` is consulted only when `compiler=msvc`. Both the x86_64 (`windows-latest`) and ARM64 (`windows-11-arm`) runner images now ship only VS 18, so both profiles pin `v145`; see the comments in `conan-profiles/CI-CD/Windows-*_profile.txt` and revisit if the images change again. Windows ctest runs with `-E '^SmokeTest\.'`: those gtests hand an `std::ifstream`/`FILE*` across the `unit_tests.exe`/`IDAWin.dll` CRT boundary.
+- **Docker** (`Dockerfile`, built and published by `container.yml`): a multi-stage build. The build stage (Debian trixie-slim + clang-19 + libc++-19 + mold + ninja + cmake + spdlog from apt) configures with `OPTION_TARGET_MESSAGING=ON` and `OPTION_TEST_WITH_LOCALHOST=ON`, runs ctest, and stages `/opt/vcell-ode`; the slim runtime stage installs only the distro packages that stage recorded and uses `docker/entrypoint.sh` as `vcell-solver-entrypoint`. Published as `ghcr.io/virtualcell/vcell-ode:<X.Y.Z>` (amd64 + arm64) plus an Apptainer SIF; see "Release contract" in `README.md`.
+
+Versioning: `-DVCELL_ODE_VERSION=<X.Y.Z>` overrides `git describe` for the version string (release and image builds pass it, since the Docker context has no `.git`). CI derives it with `.github/scripts/version.sh` from `pyproject.toml`'s `version`, which must equal the release tag.
 
 ## Tests
 
@@ -99,12 +101,14 @@ Platform notes (full recipes in `cd.yml`):
 
 Run a single test: `ctest -VV -R <regex>`. Smoke-test inputs live next to the script and are baselined — if you intentionally change numerical output, regenerate the `.expected` files.
 
+`tests/reference/` (not in ctest) holds two CVODE inputs and one IDA input with the output of the legacy `vcell-solvers` v0.0.44-dev4 binary; `compare_ida.py <ref> <run>` checks a run against them (and runs on Python 3.6). CI runs them against every release archive, the Docker image and the SIF; `stub_broker.py` stands in for ActiveMQ in `container.yml`'s messaging smoke test.
+
 `ExpressionParserTest/ExpressionParserTest.cpp` exists but is not currently wired into ctest.
 
 ## Produced binaries
 
 In native builds, `build/bin/` contains:
-- `SundialsSolverStandalone_x64` — the CLI VCell invokes; `argparse`-driven, takes `<input> <output> [-tid <jobId>]`.
+- `SundialsSolverStandalone_x64` — the CLI VCell invokes; `argparse`-driven, takes `<input> <output> [-tid <jobId>]`. `-tid` is accepted in every build (so VCell's command line is the same everywhere) but only used for status messaging when built with `OPTION_TARGET_MESSAGING`. Exits non-zero on solver failure.
 - `unit_tests` — gtest binary with the C++ tests above.
 
 In Python-binding builds, `build/lib/` holds `libIDAWin.so` — the only shared object, since `vcell*`/`sundials*` build as static archives and get linked into it — alongside those `.a` files and googletest's. `cd.yml` copies the whole directory into `pyvcell_odesolver/lib/`; the archives are inert baggage, because `check_arch.py`/`native_utils.py` only consider files matching the platform's shared-library extension. There is no per-interpreter extension module, so the wheel is ABI-independent of the Python version — only the platform tag matters.
@@ -150,7 +154,7 @@ Public headers for shared libraries live in their own dir and are pulled in via 
 - Executables always go to `build/bin/`. Shared libraries go to `build/bin/` too in native builds, but stay in `build/lib/` when `OPTION_TARGET_PYTHON_BINDING=ON` — which is why both the native release step and the wheel step in `cd.yml` start with a `cp -r build/lib/* <dest>`.
 - `cmake-build-debug/` is the CLion out-of-source build dir; `build/` is the canonical CI/Docker dir. Both are gitignored.
 - `sundials/` is vendored; prefer surgical edits over upstream re-syncs.
-- Shared-library path fixup for releases is done post-build by `.github/scripts/install_name_tool_macos.sh` (macOS) and the `ldd | cp` loops in `cd.yml` (Linux/Windows). Don't introduce absolute `rpath`s into CMake.
+- Release archives (`linux64.tgz`, `linux64arm.tgz`, `mac64.tgz`, `win64.zip`, `win64arm.zip`; contents per "Release contract" in `README.md`) are staged post-build: `.github/scripts/package_linux.sh` (bundles everything but glibc, `$ORIGIN` rpath via patchelf), `.github/scripts/package_macos.sh` (`@loader_path` references, then the `MacOS-Universal` job `lipo`s and signs), and an `ldd | cp` step in `cd.yml` for Windows. `cd.yml` then runs `tests/reference/` against each archive on a clean runner (Rocky Linux 8 for `linux64.tgz`). Don't introduce absolute `rpath`s into CMake. (`install_name_tool_macos.sh` is no longer referenced.)
 - `OPTION_TARGET_PYTHON_BINDING=ON` and `OPTION_TARGET_MESSAGING=ON` are mutually exclusive — configure aborts with `FATAL_ERROR`. The Python wheel never carries a curl dependency.
 - `pyproject.toml` is the source of truth for the Python package: build backend `uv_build`, `requires-python = ">=3.10"`, runtime dep `pydantic`, extras `test` (pytest) and `build` (build, wheel). Ruff lint config lives here too.
 - Setting `-DOPTION_EXTRA_CONFIG_INFO=ON` dumps every CMake variable at the end of configure — handy for debugging Conan-generated targets.

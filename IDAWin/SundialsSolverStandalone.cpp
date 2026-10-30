@@ -33,9 +33,9 @@ int parseAndRunWithArgParse(int argc, char *argv[]) {
 	argparse::ArgumentParser argumentParser("program_name", programVersion);
 	argumentParser.add_argument("input").help("path to directory with input files.").store_into(inputFilePath);
 	argumentParser.add_argument("output").help("path to directory for output files.").store_into(outputFilePath);
-	#ifdef USE_MESSAGING
-	argumentParser.add_argument("-tid").help("id of the job").store_into(taskID);
-	#endif
+	// Always accepted, so VCell's command line is the same for every build; without messaging
+	// (the desktop/release-archive build) the task id is simply not used for status reporting.
+	argumentParser.add_argument("-tid").help("id of the job (VCell's task id; used for status messaging)").store_into(taskID);
 
 	try {
 		argumentParser.parse_args(argc, argv);
