@@ -48,7 +48,8 @@ ODE x INIT 5.0;
 `VCellSolverInputBreakdown::SteadyStateSettings` (`IDAWin/VCellSolverInput.h`) also carries COPASI's remaining
 options, which currently have **no input keyword** and always take their defaults: `USE_NEWTON` (true),
 `USE_INTEGRATION` (true), `USE_BACK_INTEGRATION` (false), `MAX_BACKWARD_DURATION` (1e6) and `ACCEPT_NEGATIVE`
-(true; COPASI's default is false, see below). Adding a keyword for any of them is a change to
+(true; COPASI's default is false, see below). The same goes for one option COPASI does not have,
+`CONSERVE_TOTALS` (true; `false` reproduces COPASI, see [Conservation laws](#conservation-laws)). Adding a keyword for any of them is a change to
 `collectSteadyStateTerms()` in `IDAWin/VCellSolverFactory.cpp` plus the VCell writer.
 
 ## Algorithm
@@ -101,6 +102,9 @@ as zero.
   1.3e-14 relative, worst least-squares error 6e-12.
 - **Backward integration durations grow tenfold** (−0.01, −0.1, −1, …), like the forward ones. COPASI doubles
   them (−0.01, −0.02, −0.04, …). This departure is deliberate: Pedro Mendes asked for it (issue #13).
+- **Newton steps keep conserved totals** (`CONSERVE_TOTALS = true`). With a singular Jacobian, COPASI takes the
+  shortest Newton step, which can change a conserved total that is still in the ODEs; this port takes the step
+  from the Jacobian's range instead (issue #15). See [Conservation laws](#conservation-laws).
 - **`DISTANCE_OR_RATE`** is a VCell addition; COPASI only has "Distance and Rate", "Distance" and "Rate".
 - **Negative values are accepted by default** (`ACCEPT_NEGATIVE = true`), because VCell variables are not
   always concentrations (e.g. voltages). A negative steady state prints a warning.
@@ -143,12 +147,13 @@ as zero.
 
 ## Known limitations
 
-- **Conservation laws** (see the next section).
 - **Non-autonomous models** (rates or discontinuities depend on `t`): handled as in COPASI, but a "steady
   state" of a time-dependent model may not be meaningful; a warning is logged.
 - Newton runs between integrations do not see events, and backward integration is unavailable with events.
+- **Conserved totals whose Jacobian has overlapping range and null space** (see the caveat under
+  [Conservation laws](#conservation-laws)) still get COPASI's shortest step.
 
-### Conservation laws
+## Conservation laws
 
 **When it matters.** VCell normally removes conserved totals when it generates the math (the "conservation
 laws" option). The problem below only arises when that option is off, or in hand-written math models whose ODEs
@@ -165,23 +170,44 @@ reaction networks, where it removes the conserved totals itself before solving.
   zero, so the step changes `A + B`. Newton lands on `A = 0.8, B = 0.4`. That point is a steady state of the
   ODEs, but it has total 1.2, so the model can never reach it from this start.
 
-**The proposed fix.** Among all the solutions, pick the one that keeps every conserved total fixed instead of
+**The fix (issue #15).** Among all the solutions, pick the one that keeps every conserved total fixed instead of
 the shortest one. In linear-algebra terms, this means restricting `h` to the **range** (column space) of `J`:
 the set of vectors `J·v` can produce, here the multiples of `(−1, 1)`. Every conserved total is unchanged
-along any vector in that set. In the example this gives `h = (1/3, −1/3)` and the correct `A = 2/3, B = 1/3`
-in one step.
+along any vector in that set, because a conserved total `c` satisfies `cᵀJ = 0`. In the example this gives
+`h = (1/3, −1/3)` and the correct `A = 2/3, B = 1/3` in one step.
 
-**Caveat.** The range and the null space of `J` must not overlap; technically, the zero eigenvalue needs a
-full set of eigenvectors. This holds for typical conservation laws, but it is not guaranteed for every
-singular Jacobian, so an implementation must check it and fall back to the current behaviour when it fails.
-This is not implemented yet (issue #15).
+**How it is implemented.** `doNewtonStep` first solves for the shortest step as before. Only if the Jacobian
+turns out to be rank deficient, and `CONSERVE_TOTALS` is on (the default), does it call
+`SteadyStateLinearAlgebra::rangeRestrictedSolve`, which:
+1. takes the SVD of `J` and keeps the left singular vectors of its nonzero singular values: an orthonormal
+   basis `Q` of the range;
+2. solves `(J·Q) y = f` by least squares, and returns `h = Q y`.
+
+Steps taken this way are marked `(range-restricted)` in the method log. Full-rank Newton steps and the distance
+and rate targets are exactly COPASI's, so models with a nonsingular Jacobian give the same results as before.
+
+**Caveat.** The range and the null space of `J` must not overlap; technically, the zero eigenvalue needs a full
+set of eigenvectors. This holds for typical conservation laws, but it is not guaranteed for every singular
+Jacobian (for example `[[0, 1], [0, 0]]`). Overlap shows up as `J·Q` losing rank. Its singular values are
+judged against `J`'s scale, not their own, so rounding error is not mistaken for a real singular value. In that
+case the solver logs `Singular Jacobian whose range and null space overlap: using the minimum-norm step.` and
+takes COPASI's step.
+
+**Checks.**
+- Regression tests: the example above (`steady_state_conserved_linear`) and `A + B ⇌ C` with two conserved
+  totals, `A + C = 1` and `B + C = 2` (`steady_state_conserved_binding`). Both reach their analytic steady
+  states. With `CONSERVE_TOTALS = false` they end at `A = 0.8, B = 0.4` and at totals 0.63 and 2.04
+  respectively.
+- 2,000 random singular matrices with 1 to 7 conserved totals: worst residual `|J h − f| / |f|` was 6e-14, and
+  every conserved total held to 6e-11 relative. Every matrix built with an overlapping range and null space was
+  refused.
 
 ## Code layout
 
 | File | Role |
 |---|---|
 | `IDAWin/VCellSteadyStateSolver.{h,cpp}` | The solver; subclasses `VCellCVodeSolver` |
-| `IDAWin/SteadyStateLinearAlgebra.{h,cpp}` | Least squares, eigenvalues, stability statistics and report |
+| `IDAWin/SteadyStateLinearAlgebra.{h,cpp}` | Least squares (minimum-norm and range-restricted), eigenvalues, stability statistics and report |
 | `IDAWin/VCellSolverInput.h` | `SteadyStateSettings` and its defaults |
 | `IDAWin/VCellSolverFactory.cpp` | `CSSS` → `STEADY_STATE`; `collectSteadyStateTerms()` parses the section |
 | `IDAWin/VCellSundialsSolver.{h,cpp}` | `resetEvents()` / `hasEvents()`, used to restart integrations |
@@ -190,7 +216,7 @@ This is not implemented yet (issue #15).
 ## Tests
 
 - `ctest -R SteadyState` runs the regression tests in `tests/unit/steady_state_test.cpp`: Newton path,
-  integration path, events, no-steady-state error, and unit tests of the linear algebra. Baselines in
+  integration path, events, conserved totals, no-steady-state error, and unit tests of the linear algebra. Baselines in
   `tests/unit/resources/steady_state_*.ida.expected` are analytic steady states, not solver output.
 - Cross-check against COPASI (not in ctest; needs network the first time):
   ```bash

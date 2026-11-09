@@ -41,6 +41,8 @@
  *   - The method log streams to stdout as the search runs, followed by a result summary giving both distance
  *     and rate and whether each met RESOLUTION (issue #14). When no steady state is found, the last state tried
  *     is kept for that summary instead of COPASI's restoring the start state.
+ *   - With a singular Jacobian, the Newton step is taken from the Jacobian's range (CONSERVE_TOTALS, on by default)
+ *     rather than COPASI's minimum-norm step, so ODEs that still contain conserved totals keep them (issue #15).
  *   - With a single Jacobian (no moiety reduction), the stability analysis corresponds to COPASI's
  *     "Eigenvalues of Jacobian"; it is printed to stdout together with the Jacobian rather than to the output file.
  */
@@ -54,6 +56,7 @@ namespace {
 }
 
 using SteadyStateLinearAlgebra::leastSquaresSolve;
+using SteadyStateLinearAlgebra::rangeRestrictedSolve;
 
 void VCellSteadyStateSolver::configureFromInput(VCellSolverInputBreakdown& inputBreakdown) {
 	settings = inputBreakdown.steadyStateSettings;
@@ -193,8 +196,20 @@ VCellSteadyStateSolver::NewtonResult VCellSteadyStateSolver::doNewtonStep(double
 	std::vector<double> jacobian;
 	calculateJacobian(false, jacobian);
 	std::vector<double> h;
+	const char* stepKind = "";
 	if (leastSquaresSolve(jacobian, NUM_EQUATIONS, NUM_EQUATIONS, dxdt, h) != static_cast<std::size_t>(NUM_EQUATIONS)) {
-		// Rank deficient: we can still step as long as the step is not zero
+		// Rank deficient. The minimum-norm step can change conserved totals; a step from the Jacobian's range cannot
+		// (issue #15). It exists unless the range and null space overlap, in which case keep COPASI's step.
+		if (settings.CONSERVE_TOTALS) {
+			std::vector<double> conservingStep;
+			if (rangeRestrictedSolve(jacobian, NUM_EQUATIONS, dxdt, conservingStep)) {
+				h = std::move(conservingStep);
+				stepKind = " (range-restricted)";
+			} else {
+				methodLog << "    Singular Jacobian whose range and null space overlap: using the minimum-norm step.\n";
+			}
+		}
+		// we can still step as long as the step is not zero
 		const bool isZeroStep = std::ranges::none_of(h, [](const double v) { return std::fabs(v) > 100.0 * EPSILON; });
 		if (isZeroStep) {
 			methodLog << "    Newton step failed. Jacobian could not be inverted.\n\n";
@@ -227,8 +242,8 @@ VCellSteadyStateSolver::NewtonResult VCellSteadyStateSolver::doNewtonStep(double
 	}
 
 	currentValue = newValue;
-	if (i <= 1) methodLog << "    Regular Newton step.      New value: " << targetValueToString() << "\n";
-	else methodLog << "    Newton step with damping. New value: " << targetValueToString() << " (" << i - 1 << " damping iteration(s))\n";
+	if (i <= 1) methodLog << "    Regular Newton step" << stepKind << ".      New value: " << targetValueToString() << "\n";
+	else methodLog << "    Newton step with damping" << stepKind << ". New value: " << targetValueToString() << " (" << i - 1 << " damping iteration(s))\n";
 	return NewtonResult::STEP_SUCCESSFUL;
 }
 

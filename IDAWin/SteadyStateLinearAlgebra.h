@@ -19,6 +19,15 @@ namespace SteadyStateLinearAlgebra {
 								  const std::vector<double>& b, std::vector<double>& x);
 
 	/**
+	 * Solution of A x = b (A is n x n) restricted to the range (column space) of A, for singular A. A vector c
+	 * with c^T A = 0 (a conserved total, when A is a Jacobian) then has c^T x = 0, which the minimum-norm
+	 * solution does not guarantee. Least squares if b is not in the range. Rank is decided as in
+	 * leastSquaresSolve. Returns false, leaving x all NaN, if A is not finite, is zero, or its range and null
+	 * space intersect beyond 0 (the zero eigenvalue lacks a full set of eigenvectors), where no such x exists.
+	 */
+	bool rangeRestrictedSolve(const std::vector<double>& A, std::size_t n, const std::vector<double>& b, std::vector<double>& x);
+
+	/**
 	 * Eigenvalues of the general real n x n matrix A: balancing, reduction to Hessenberg form, then the
 	 * shifted QR algorithm. Complex conjugate pairs are returned adjacently. Returns false if A is not finite or
 	 * the QR iteration did not converge.

@@ -213,17 +213,23 @@ namespace {
 		}
 		return true;
 	}
-}
+	struct SVD {
+		std::vector<double> U;     // column-major rows x cols: column j is sigma_j u_j (= A v_j)
+		std::vector<double> V;     // column-major cols x cols: column j is v_j
+		std::vector<double> sigma; // unsorted
+		double threshold = 0.0;    // singular values at or below this count as zero
 
-namespace SteadyStateLinearAlgebra {
-	std::size_t leastSquaresSolve(const std::vector<double>& A, const std::size_t rows, const std::size_t cols,
-								  const std::vector<double>& b, std::vector<double>& x) {
-		x.assign(cols, NOT_A_NUMBER);
-		if (std::ranges::any_of(A, [](const double a) { return std::isnan(a); })) return 0;
+		bool isNonzero(const std::size_t j) const { return sigma[j] != 0.0 && sigma[j] > threshold; }
+	};
 
-		// Column-major: the columns of U are rotated until mutually orthogonal (U = A V), V accumulates rotations
-		std::vector<double> U(rows * cols);
-		std::vector<double> V(cols * cols, 0.0);
+	// One-sided Jacobi SVD: the columns of U are rotated until mutually orthogonal (U = A V), V accumulates
+	// the rotations. A is row-major rows x cols and must not contain NaN.
+	SVD jacobiSVD(const std::vector<double>& A, const std::size_t rows, const std::size_t cols) {
+		SVD svd;
+		std::vector<double>& U = svd.U;
+		std::vector<double>& V = svd.V;
+		U.resize(rows * cols);
+		V.assign(cols * cols, 0.0);
 		for (std::size_t r = 0; r < rows; r++)
 			for (std::size_t c = 0; c < cols; c++) U[c * rows + r] = A[r * cols + c];
 		for (std::size_t c = 0; c < cols; c++) V[c * cols + c] = 1.0;
@@ -252,25 +258,73 @@ namespace SteadyStateLinearAlgebra {
 			if (!rotated) break;
 		}
 
-		// x = sum_j v_j (u_j . b) / sigma_j, with u_j = U_j / sigma_j
-		std::vector<double> sigma(cols);
+		svd.sigma.resize(cols);
 		for (std::size_t j = 0; j < cols; j++) {
 			double norm = 0.0;
 			for (std::size_t k = 0; k < rows; k++) norm += U[j * rows + k] * U[j * rows + k];
-			sigma[j] = std::sqrt(norm);
+			svd.sigma[j] = std::sqrt(norm);
 		}
-		const double threshold = cols == 0 ? 0.0 : 100.0 * EPSILON * *std::ranges::max_element(sigma);
+		svd.threshold = cols == 0 ? 0.0 : 100.0 * EPSILON * *std::ranges::max_element(svd.sigma);
+		return svd;
+	}
+
+	// x = sum_j v_j (u_j . b) / sigma_j over the singular values above threshold, with u_j = U_j / sigma_j.
+	// Returns how many there were (the rank).
+	std::size_t minimumNormSolution(const SVD& svd, const std::size_t rows, const std::size_t cols,
+									const std::vector<double>& b, const double threshold, std::vector<double>& x) {
 		std::size_t rank = 0;
 		x.assign(cols, 0.0);
 		for (std::size_t j = 0; j < cols; j++) {
-			if (sigma[j] == 0.0 || sigma[j] <= threshold) continue;
+			if (svd.sigma[j] == 0.0 || svd.sigma[j] <= threshold) continue;
 			rank++;
 			double projection = 0.0;
-			for (std::size_t k = 0; k < rows; k++) projection += U[j * rows + k] * b[k];
-			const double coefficient = projection / (sigma[j] * sigma[j]);
-			for (std::size_t i = 0; i < cols; i++) x[i] += coefficient * V[j * cols + i];
+			for (std::size_t k = 0; k < rows; k++) projection += svd.U[j * rows + k] * b[k];
+			const double coefficient = projection / (svd.sigma[j] * svd.sigma[j]);
+			for (std::size_t i = 0; i < cols; i++) x[i] += coefficient * svd.V[j * cols + i];
 		}
 		return rank;
+	}
+}
+
+namespace SteadyStateLinearAlgebra {
+	std::size_t leastSquaresSolve(const std::vector<double>& A, const std::size_t rows, const std::size_t cols,
+								  const std::vector<double>& b, std::vector<double>& x) {
+		x.assign(cols, NOT_A_NUMBER);
+		if (std::ranges::any_of(A, [](const double a) { return std::isnan(a); })) return 0;
+		const SVD svd = jacobiSVD(A, rows, cols);
+		return minimumNormSolution(svd, rows, cols, b, svd.threshold, x);
+	}
+
+	bool rangeRestrictedSolve(const std::vector<double>& A, const std::size_t n, const std::vector<double>& b,
+							  std::vector<double>& x) {
+		x.assign(n, NOT_A_NUMBER);
+		if (std::ranges::any_of(A, [](const double a) { return !std::isfinite(a); })) return false;
+		const SVD svd = jacobiSVD(A, n, n);
+
+		// Q: orthonormal basis of range(A), the left singular vectors u_j = U_j / sigma_j of the nonzero sigma_j
+		std::vector<double> Q; // column-major, n x rank
+		for (std::size_t j = 0; j < n; j++) {
+			if (!svd.isNonzero(j)) continue;
+			for (std::size_t k = 0; k < n; k++) Q.push_back(svd.U[j * n + k] / svd.sigma[j]);
+		}
+		const std::size_t rank = Q.size() / n;
+		if (rank == 0) return false;
+
+		// x = Q y with (A Q) y = b. A Q has full column rank exactly when range(A) and null(A) intersect only in 0.
+		// Its singular values count as zero relative to A's scale, not its own: when they overlap, A Q's would-be
+		// zero singular value is rounding error of size eps * |A|, which can exceed eps * |A Q|.
+		std::vector<double> AQ(n * rank, 0.0); // row-major, n x rank
+		for (std::size_t r = 0; r < n; r++)
+			for (std::size_t c = 0; c < rank; c++)
+				for (std::size_t k = 0; k < n; k++) AQ[r * rank + c] += A[r * n + k] * Q[c * n + k];
+		const SVD svdAQ = jacobiSVD(AQ, n, rank);
+		std::vector<double> y;
+		if (minimumNormSolution(svdAQ, n, rank, b, std::max(svd.threshold, svdAQ.threshold), y) != rank) return false;
+
+		x.assign(n, 0.0);
+		for (std::size_t c = 0; c < rank; c++)
+			for (std::size_t k = 0; k < n; k++) x[k] += Q[c * n + k] * y[c];
+		return true;
 	}
 
 	bool eigenvalues(std::vector<double> A, const std::size_t n, std::vector<double>& realParts, std::vector<double>& imaginaryParts) {

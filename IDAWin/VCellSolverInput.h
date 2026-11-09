@@ -40,7 +40,7 @@ struct VCellSolverInputBreakdown {
 	};
 
 	// Defaults mirror COPASI's CNewtonMethod / CSteadyStateMethod parameter defaults, except
-	// ACCEPT_NEGATIVE: VCell variables are not necessarily concentrations (e.g. voltages).
+	// ACCEPT_NEGATIVE: VCell variables are not necessarily concentrations (e.g. voltages), and CONSERVE_TOTALS.
 	// Only the first five fields are read from the input file; the rest keep their defaults.
 	struct SteadyStateSettings {
 		realtype RESOLUTION = 1.0e-9;
@@ -53,6 +53,9 @@ struct VCellSolverInputBreakdown {
 		bool USE_INTEGRATION = true;
 		bool USE_BACK_INTEGRATION = false;
 		bool ACCEPT_NEGATIVE = true;
+		// Not in COPASI (issue #15): with a singular Jacobian, take the Newton step from the Jacobian's range, which
+		// keeps conserved totals fixed, instead of the minimum-norm step. false reproduces COPASI.
+		bool CONSERVE_TOTALS = true;
 	};
 
 	struct DiscontinuityComponents {

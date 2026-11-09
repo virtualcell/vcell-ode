@@ -44,6 +44,15 @@ TEST(SteadyStateTest, EventsFireDuringIntegration) {
 	performSteadyStateTest("steady_state_events");
 }
 
+// Conserved totals left in the ODEs make the Jacobian singular; the range-restricted Newton step keeps them (issue #15)
+TEST(SteadyStateTest, ConservedTotalLinear) {
+	performSteadyStateTest("steady_state_conserved_linear");
+}
+
+TEST(SteadyStateTest, ConservedTotalsBinding) {
+	performSteadyStateTest("steady_state_conserved_binding");
+}
+
 TEST(SteadyStateTest, NoSteadyStateIsAnError) {
 	const std::filesystem::path output{std::filesystem::temp_directory_path() / "steady_state_none.ida"};
 	EXPECT_NE(0, runSteadyState("steady_state_none", output));
@@ -87,6 +96,23 @@ TEST(SteadyStateLinearAlgebraTest, LeastSquares) {
 	EXPECT_EQ(1u, SteadyStateLinearAlgebra::leastSquaresSolve({-1, 2, 1, -2}, 2, 2, {-1, 1}, x));
 	EXPECT_NEAR(x[0], 0.2, 1e-14);
 	EXPECT_NEAR(x[1], -0.4, 1e-14);
+}
+
+TEST(SteadyStateLinearAlgebraTest, RangeRestrictedSolve) {
+	std::vector<double> x;
+	// Conserved total A + B: all solutions of J h = f are (1, 0) + s (2, 1); the one in range(J) = span(-1, 1)
+	// is (1/3, -1/3), which keeps A + B, unlike the minimum-norm (0.2, -0.4)
+	ASSERT_TRUE(SteadyStateLinearAlgebra::rangeRestrictedSolve({-1, 2, 1, -2}, 2, {-1, 1}, x));
+	EXPECT_NEAR(x[0], 1.0 / 3.0, 1e-14);
+	EXPECT_NEAR(x[1], -1.0 / 3.0, 1e-14);
+	// Full rank: the ordinary solution
+	ASSERT_TRUE(SteadyStateLinearAlgebra::rangeRestrictedSolve({2, 1, 1, 3}, 2, {3, 5}, x));
+	EXPECT_NEAR(x[0], 0.8, 1e-14);
+	EXPECT_NEAR(x[1], 1.4, 1e-14);
+	// Range and null space overlap (both are span(1, 0)): no such solution
+	EXPECT_FALSE(SteadyStateLinearAlgebra::rangeRestrictedSolve({0, 1, 0, 0}, 2, {1, 0}, x));
+	EXPECT_FALSE(SteadyStateLinearAlgebra::rangeRestrictedSolve({0, 0, 0, 0}, 2, {0, 0}, x));
+	EXPECT_FALSE(SteadyStateLinearAlgebra::rangeRestrictedSolve({std::nan(""), 0, 0, 1}, 2, {1, 1}, x));
 }
 
 TEST(SteadyStateLinearAlgebraTest, StabilityAnalysis) {
