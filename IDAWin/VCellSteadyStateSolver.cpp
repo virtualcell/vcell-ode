@@ -6,9 +6,11 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <format>
 #include <iomanip>
 #include <iostream>
 #include <limits>
+#include <sstream>
 
 #include <cvode/cvode.h>
 #include <nvector/nvector_serial.h>
@@ -34,6 +36,11 @@
  *     "Distance and Rate" (max), "Distance" and "Rate".
  *   - Events fire during forward integration (as in a VCell time course); Newton ignores them, as in COPASI.
  *     Backward integration is skipped for models with events, since delays and triggers run forward in time.
+ *   - Backward integration durations grow tenfold (-0.01, -0.1, -1, ...) like the forward ones; COPASI doubles
+ *     them (-0.01, -0.02, -0.04, ...). Requested by Pedro Mendes (issue #13).
+ *   - The method log streams to stdout as the search runs, followed by a result summary giving both distance
+ *     and rate and whether each met RESOLUTION (issue #14). When no steady state is found, the last state tried
+ *     is kept for that summary instead of COPASI's restoring the start state.
  *   - With a single Jacobian (no moiety reduction), the stability analysis corresponds to COPASI's
  *     "Eigenvalues of Jacobian"; it is printed to stdout together with the Jacobian rather than to the output file.
  */
@@ -91,10 +98,22 @@ void VCellSteadyStateSolver::solve(double* paramValues, bool bPrintProgress, FIL
 		if (x[i] != 0.0) absoluteTolerances[i] *= std::min(1.0, std::fabs(x[i]));
 	}
 
-	methodLog.str("");
-	const bool found = processInternal();
-	std::cout << methodLog.str() << std::endl;
-	if (!found) throw VCell::Exception("Steady state not found; see the method log for details");
+	const std::ios_base::fmtflags coutFlags = std::cout.flags();
+	std::cout << std::unitbuf; // flush each log line, so progress shows up while the search runs
+	bool found;
+	try {
+		found = processInternal();
+	} catch (...) {
+		std::cout.flags(coutFlags);
+		throw;
+	}
+	std::cout.flags(coutFlags);
+	if (!found) {
+		std::cout << resultSummary(false) << std::endl;
+		throw VCell::Exception("Steady state not found (last state tried: " + targetValueToString() + ", resolution "
+							   + std::format("{}", settings.RESOLUTION) + "); see the method log for details");
+	}
+	std::cout << resultSummary(true) << std::endl;
 	if (!allPositive()) std::cout << "WARNING: The steady state contains negative values." << std::endl;
 	printStabilityAnalysis();
 
@@ -106,14 +125,13 @@ void VCellSteadyStateSolver::solve(double* paramValues, bool bPrintProgress, FIL
 }
 
 bool VCellSteadyStateSolver::processInternal() {
-	const std::vector<double> startState = x;
-	const double startTime = currentTime;
-
+	stateOrigin = "the initial state";
 	if (!isAutonomous && settings.USE_NEWTON)
 		methodLog << "WARNING: The model is not autonomous (it depends on t); Newton's method may not be meaningful.\n";
 
 	if (settings.USE_NEWTON) {
 		methodLog << "Try Newton's method. \n";
+		stateOrigin = "Newton's method from the initial state";
 		if (processNewton() == NewtonResult::FOUND) return true;
 	}
 	if (settings.USE_INTEGRATION) {
@@ -129,8 +147,8 @@ bool VCellSteadyStateSolver::processInternal() {
 		}
 	}
 
-	x = startState;
-	currentTime = startTime;
+	// COPASI restores the start state here; this port keeps the last state tried, which the result summary
+	// reports (the output file gets no data row when no steady state is found)
 	return false;
 }
 
@@ -215,7 +233,8 @@ VCellSteadyStateSolver::NewtonResult VCellSteadyStateSolver::doNewtonStep(double
 }
 
 bool VCellSteadyStateSolver::doIntegration(const bool forward) {
-	const double iterationFactor = forward ? 10.0 : 2.0;
+	// COPASI doubles the backward durations; both directions grow tenfold here, as Pedro Mendes asked (issue #13)
+	const double iterationFactor = 10.0;
 	const double maxDuration = forward ? settings.MAX_FORWARD_DURATION : -settings.MAX_BACKWARD_DURATION;
 	// minimum duration is either hardcoded or equal to maximum duration, whichever is smaller
 	const double minDuration = forward ? std::min(settings.MAX_FORWARD_DURATION, 1e-1)
@@ -236,6 +255,8 @@ bool VCellSteadyStateSolver::doIntegration(const bool forward) {
 			break;
 		}
 
+		const std::string integration = std::format("{} integration (duration {})", forward ? "forward" : "backward", duration);
+		stateOrigin = integration;
 		const double value = targetFunction();
 		if (isSteadyState(value)) {
 			methodLog << "  Integration with duration " << duration << ". Criterion matched by " << targetValueToString() << ".\n\n";
@@ -245,6 +266,7 @@ bool VCellSteadyStateSolver::doIntegration(const bool forward) {
 
 		if (settings.USE_NEWTON) {
 			methodLog << "  Try Newton's method from this starting point. \n";
+			stateOrigin = "Newton's method after " + integration;
 			const NewtonResult newtonResult = processNewton();
 			methodLog << "\n";
 			if (newtonResult == NewtonResult::FOUND) return true;
@@ -439,6 +461,32 @@ std::string VCellSteadyStateSolver::targetValueToString() const {
 		case DISTANCE_AND_RATE:
 		case DISTANCE_OR_RATE: os << "Distance: " << targetDistance << ", Rate: " << targetRate; break;
 	}
+	return os.str();
+}
+
+std::string VCellSteadyStateSolver::resultSummary(const bool found) {
+	// Both targets, whatever the criterion, so the caller can tell which one was (or was not) met
+	std::string distance = "not computed (the state contains NaN or Inf)", rate = distance;
+	if (!containsNaN()) {
+		evaluateRates(currentTime, x, dxdt);
+		targetRate = targetFunctionRate();
+		targetDistance = targetFunctionDistance(targetRate);
+		auto describe = [this](const double value) {
+			return std::format("{} ({})", value, value <= settings.RESOLUTION ? "met" : "not met");
+		};
+		distance = describe(targetDistance);
+		rate = describe(targetRate);
+	}
+	static constexpr const char* CRITERIA[] = {"DISTANCE_ONLY", "RATE_ONLY", "DISTANCE_OR_RATE", "DISTANCE_AND_RATE"};
+
+	std::ostringstream os;
+	os << "\nSTEADY STATE RESULT\n";
+	os << "Status: " << (found ? "FOUND" : "NOT FOUND") << "\n";
+	os << (found ? "Found by: " : "Last state tried: ") << stateOrigin << "\n";
+	os << "Time: " << currentTime << "\n";
+	os << "Criterion: " << CRITERIA[settings.STOP_CRITERIA] << " (resolution " << settings.RESOLUTION << ")\n";
+	os << "Distance: " << distance << "\n";
+	os << "Rate: " << rate << "\n";
 	return os.str();
 }
 

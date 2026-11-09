@@ -63,7 +63,8 @@ Function names in `IDAWin/VCellSteadyStateSolver.cpp` follow COPASI's, so the tw
    10, … up to `MAXIMUM_FORWARD_DURATION`. After each run: stop if the integrated state already satisfies the
    criterion; otherwise run Newton from that state; stop if Newton converges. Integration failure, NaNs or the
    internal step limit (100,000 steps, COPASI's default) end the loop.
-3. Backward integration, the same with durations −0.01, −0.02, −0.04, … (off by default).
+3. Backward integration, the same with durations −0.01, −0.1, −1, … up to `MAX_BACKWARD_DURATION` (off by
+   default).
 4. Otherwise: no steady state.
 
 **Newton (`processNewton`, `doNewtonStep`).** Each step solves `J h = f(x)` and tries `x − h`, halving `h`
@@ -98,6 +99,8 @@ as zero.
   minimum-norm least-squares solve; rank cutoff `100·ε·σ_max`) and DGEES (balancing, Hessenberg reduction and
   the double-shift QR algorithm). Checked against numpy/LAPACK on 311 matrices: worst eigenvalue error
   1.3e-14 relative, worst least-squares error 6e-12.
+- **Backward integration durations grow tenfold** (−0.01, −0.1, −1, …), like the forward ones. COPASI doubles
+  them (−0.01, −0.02, −0.04, …). This departure is deliberate: Pedro Mendes asked for it (issue #13).
 - **`DISTANCE_OR_RATE`** is a VCell addition; COPASI only has "Distance and Rate", "Distance" and "Rate".
 - **Negative values are accepted by default** (`ACCEPT_NEGATIVE = true`), because VCell variables are not
   always concentrations (e.g. voltages). A negative steady state prints a warning.
@@ -113,24 +116,65 @@ as zero.
 - **Output file (`.ida`)**: the usual header plus **one row** with the steady state. The `t` column is the
   time at which it was found: `STARTING_TIME` when Newton succeeds from the initial state, otherwise the end of
   the integration that led to it. VCell's `ODESimData.readIDADataFile` reads this as a one-row result set.
-- **stdout**: the method log (every Newton and integration attempt and its target values), then the Jacobian,
-  its eigenvalues and the stability report.
-- **Exit code**: 0 on success. If no steady state is found, the process exits non-zero (253, i.e. `-3`) with
-  `Steady state not found; see the method log for details` on stderr, and the output file has only the header.
-  The same commit made every solver failure exit non-zero (previously the CLI always exited 0), so
-  `pyvcell_odesolver.solve()` now returns 1 for failures too.
+- **stdout**, in order:
+  1. The method log: every Newton and integration attempt and its distance and rate. It is written while the
+     search runs, flushed line by line, so a caller reading stdout sees progress as it happens.
+  2. A result summary, written whether or not a steady state was found (issue #14). Both targets are reported
+     whatever the criterion, so it is clear which one was met; this matters most for `DISTANCE_OR_RATE`:
+     ```
+     STEADY STATE RESULT
+     Status: FOUND                                   (or NOT FOUND)
+     Found by: forward integration (duration 100)    (or "Last state tried: ...")
+     Time: 100
+     Criterion: DISTANCE_AND_RATE (resolution 1e-09)
+     Distance: 6.209156509407016e-12 (met)
+     Rate: 6.921352380118151e-12 (met)
+     ```
+     "Found by" is one of: `Newton's method from the initial state`, `forward integration (duration D)` (the
+     integrated state already met the criterion), or `Newton's method after forward integration (duration D)`
+     (or the backward equivalents). When no steady state is found, the summary describes the last state the
+     search reached. COPASI restores the start state instead; there is no output row in that case, so nothing
+     else depends on it.
+  3. On success only: the Jacobian, its eigenvalues and the stability report.
+- **Exit code**: 0 on success. If no steady state is found, the process exits non-zero (253, i.e. `-3`), the
+  output file has only the header, and stderr carries the last state's targets, e.g.
+  `Steady state not found (last state tried: Distance: inf, Rate: 1, resolution 1e-09); see the method log for details`.
+  Every solver failure exits non-zero, and `pyvcell_odesolver.solve()` returns 1 for failures.
 
 ## Known limitations
 
-- **Conservation laws.** If the ODEs still contain a conserved total (e.g. `A' = −A + 2B`, `B' = A − 2B`), the
-  Jacobian is singular and Newton can converge to a point that breaks the conserved total (here
-  `A = 0.8, B = 0.4` from `A0 = 1, B0 = 0`). COPASI does exactly the same on these ODEs; it only avoids this for
-  reaction networks, where it removes conserved totals first. VCell normally removes them when generating the
-  math ("conservation laws" option), so this matters mainly when that is off or for hand-written math models.
-  A possible fix is to restrict Newton steps to the range of the Jacobian.
+- **Conservation laws** (see the next section).
 - **Non-autonomous models** (rates or discontinuities depend on `t`): handled as in COPASI, but a "steady
   state" of a time-dependent model may not be meaningful; a warning is logged.
 - Newton runs between integrations do not see events, and backward integration is unavailable with events.
+
+### Conservation laws
+
+**When it matters.** VCell normally removes conserved totals when it generates the math (the "conservation
+laws" option). The problem below only arises when that option is off, or in hand-written math models whose ODEs
+still contain a conserved total. COPASI behaves exactly the same on such ODEs. It avoids the problem only for
+reaction networks, where it removes the conserved totals itself before solving.
+
+**The problem, on an example.** Take `A' = −A + 2B`, `B' = A − 2B`, starting from `A = 1, B = 0`.
+- `A' + B' = 0` always, so `A + B` stays at 1 forever. The true steady state is `A = 2/3, B = 1/3`.
+- A conserved total makes the Jacobian singular. Here `J = [[−1, 2], [1, −2]]`: its second column is −2 times
+  its first.
+- A Newton step solves `J h = f(x)` and moves to `x − h`. At the start, `f = (−1, 1)`. Because `J` is
+  singular, this equation has infinitely many solutions: `h = (1, 0) + s·(2, 1)` for any `s`.
+- Like COPASI, the solver picks the **shortest** solution, `h = (0.2, −0.4)`. Its components don't add up to
+  zero, so the step changes `A + B`. Newton lands on `A = 0.8, B = 0.4`. That point is a steady state of the
+  ODEs, but it has total 1.2, so the model can never reach it from this start.
+
+**The proposed fix.** Among all the solutions, pick the one that keeps every conserved total fixed instead of
+the shortest one. In linear-algebra terms, this means restricting `h` to the **range** (column space) of `J`:
+the set of vectors `J·v` can produce, here the multiples of `(−1, 1)`. Every conserved total is unchanged
+along any vector in that set. In the example this gives `h = (1/3, −1/3)` and the correct `A = 2/3, B = 1/3`
+in one step.
+
+**Caveat.** The range and the null space of `J` must not overlap; technically, the zero eigenvalue needs a
+full set of eigenvectors. This holds for typical conservation laws, but it is not guaranteed for every
+singular Jacobian, so an implementation must check it and fall back to the current behaviour when it fails.
+This is not implemented yet (issue #15).
 
 ## Code layout
 

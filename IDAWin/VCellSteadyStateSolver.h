@@ -5,7 +5,7 @@
 #ifndef VCELLSTEADYSTATESOLVER_H
 #define VCELLSTEADYSTATESOLVER_H
 
-#include <sstream>
+#include <iostream>
 #include <string>
 #include <vector>
 
@@ -50,7 +50,9 @@ private:
 	std::vector<double> absoluteTolerances;
 	double targetRate = 0.0;
 	double targetDistance = 0.0;
-	std::ostringstream methodLog;
+	std::string stateOrigin; // which attempt produced the current state, for the result summary
+	// written to stdout as the search runs, so the caller sees each attempt's distance and rate as it happens
+	std::ostream& methodLog = std::cout;
 
 	bool processInternal();
 	NewtonResult processNewton();
@@ -67,6 +69,7 @@ private:
 	bool containsNaN() const;
 	bool allPositive() const;
 	std::string targetValueToString() const;
+	std::string resultSummary(bool found);
 	void determineAutonomy();
 	void printStabilityAnalysis();
 };
