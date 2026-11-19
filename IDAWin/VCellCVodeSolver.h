@@ -18,9 +18,14 @@ protected:
 	std::string getSolverName() override { return "CVODE"; }
 	VCellSolverTypes getSolverType() override { return VCellSolverTypes::CVODE; }
 
-private:
 	VCell::Expression** rateExpressions;
-	
+
+	void initCVode(double* paramValues);
+	void reInit(realtype t);
+	void onCVodeReturn(realtype Time, int returnCode);
+	void throwCVodeErrorMessage(int returnCode);
+
+private:
 	int RHS(realtype t, N_Vector y, N_Vector yp);
 	static int RHS_callback(realtype t, N_Vector y, N_Vector r, void *fdata);
 	/*
@@ -47,17 +52,12 @@ private:
 		the integration is halted and CVode returns CV RTFUNC FAIL).
 	*/
 
-	void initCVode(double* paramValues);
 	void cvodeSolve(bool bPrintProgress, FILE* outputFile, void (*checkStopRequested)(double, long));
 
-	void throwCVodeErrorMessage(int returnCode);
 	void checkCVodeFlag(int flag);
 
-	void reInit(realtype t);
 	bool fixInitialDiscontinuities(double t) override;
 	void updateTandVariableValues(realtype t, N_Vector y) override;
-
-	void onCVodeReturn(realtype Time, int returnCode);
 
 };
 

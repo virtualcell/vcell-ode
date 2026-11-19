@@ -103,6 +103,9 @@ class VCellSundialsSolver : public VCellSolver {
 		virtual VCellSolverTypes getSolverType() =0;
 		bool executeEvents(realtype realTimeVar);
 		double getNextEventTime();
+		/// Forget pending event executions and trigger states, as at the start of a fresh solve.
+		void resetEvents();
+		[[nodiscard]] bool hasEvents() const { return numEvents > 0; }
 
 	private:
 		Event **events;
